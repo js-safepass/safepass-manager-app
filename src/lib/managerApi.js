@@ -298,89 +298,106 @@ export function createManagerApi({
   };
 }
 
+// ---------------------------------------------------------------------------
 // Mock API — the whole app must stay drivable with VITE_MANAGER_MOCK=true and
-// no backend. Shapes mirror the OpenAPI spec ({ data } envelopes; list
-// responses carry { data, meta } with keyset meta.cursor). Extend per-flow as
-// screens get built; keep shapes honest to the spec rather than convenient.
+// no backend. Shapes mirror the OpenAPI spec ({ data } envelopes; lists carry
+// { data, meta } with opaque keyset meta.cursor, absent on the last page;
+// expand hydrates a top-level includes map). Stateful on purpose: check-in
+// simulates the async badge pipeline, visit transitions enforce the status
+// lifecycle, notifications mutate — so flows behave like the live backend.
+// ---------------------------------------------------------------------------
 export function createMockManagerApi() {
   const org = { id: 'org_001', name: 'Acme Corp HQ' };
+  const now = Date.now();
+  const iso = (msAgo) => new Date(now - msAgo).toISOString();
+  const HOUR = 3600_000;
+  const DAY = 24 * HOUR;
 
-  const visitors = [
-    {
-      id: 'visitor_001',
-      organization_id: org.id,
-      first_name: 'Jane',
-      last_name: 'Doe',
-      email: 'jane@example.com',
-      phone: '+15555550123',
-      status: 'active',
-      type: 'guest',
-      company: 'Northwind Traders',
-      photo_media_id: 'media_photo_001',
-      version: 4,
-      created_at: '2026-07-01T17:20:00Z',
-      updated_at: '2026-07-09T22:41:00Z',
-    },
-    {
-      id: 'visitor_002',
-      organization_id: org.id,
-      first_name: 'Jordan',
-      last_name: 'Smith',
-      email: 'jordan@example.com',
-      phone: '+15555550188',
-      status: 'active',
-      type: 'contractor',
-      company: 'Fabrikam',
-      photo_media_id: null,
-      version: 2,
-      created_at: '2026-06-20T15:00:00Z',
-      updated_at: '2026-07-08T18:12:00Z',
-    },
-  ];
+  const FIRST = ['Jane', 'Jordan', 'Maria', 'Wei', 'Aisha', 'Carlos', 'Emma', 'Noah', 'Priya', 'Liam', 'Sofia', 'Ethan', 'Chloe', 'Marcus', 'Yuki', 'Omar', 'Grace', 'Diego', 'Nina', 'Sam'];
+  const LAST = ['Doe', 'Smith', 'Garcia', 'Chen', 'Khan', 'Reyes', 'Miller', 'Brown', 'Patel', 'Wilson', 'Rossi', 'Clark', 'Dubois', 'Webb', 'Tanaka', 'Hassan', 'Lee', 'Vargas', 'Novak', 'Turner'];
+  const COMPANY = ['Northwind Traders', 'Fabrikam', 'Contoso', 'Globex', 'Initech', 'Umbrella Corp', 'Stark Industries', 'Wayne Enterprises'];
+  const TYPE = ['guest', 'contractor', 'vendor'];
+  const STATUS = ['active', 'active', 'active', 'active', 'pending_review', 'archived'];
 
-  // Unread is derived from a null read_at (sentinel-ui notificationsProvider
-  // convention), not a boolean flag.
-  const notifications = [
-    {
-      id: 'ntf_001',
-      type: 'visitor_checked_in',
-      title: 'Jane Doe checked in',
-      severity: 'info',
-      created_at: '2026-07-10T16:05:00Z',
-      read_at: null,
-    },
-    {
-      id: 'ntf_002',
-      type: 'checkin_failed',
-      title: 'Check-in failed at Main Lobby',
-      severity: 'warning',
-      created_at: '2026-07-10T15:47:00Z',
-      read_at: '2026-07-10T15:50:00Z',
-    },
-  ];
+  const visitors = Array.from({ length: 34 }, (_, i) => ({
+    id: `visitor_${String(i + 1).padStart(3, '0')}`,
+    organization_id: org.id,
+    first_name: FIRST[i % FIRST.length],
+    last_name: LAST[(i * 7) % LAST.length],
+    email: `${FIRST[i % FIRST.length]}.${LAST[(i * 7) % LAST.length]}@example.com`.toLowerCase(),
+    phone: `+1555555${String(100 + i)}`,
+    status: STATUS[i % STATUS.length],
+    type: TYPE[i % TYPE.length],
+    company: COMPANY[(i * 3) % COMPANY.length],
+    notes: '',
+    photo_media_id: i % 3 === 0 ? `media_photo_${i}` : null,
+    version: 1 + (i % 5),
+    created_at: iso((40 - i) * DAY),
+    updated_at: iso((34 - i) * 6 * HOUR),
+  }));
 
-  // Visit shape mirrors the live contract fields the visit/badge flows key
-  // off (visitHelpers.js / useVisitFlow.js in sentinel-ui): status lifecycle
-  // pending|checking_in|active|checking_out|completed|failed|cancelled,
-  // checkin_status, and the badge pipeline media/error fields.
+  let visitSeq = 100;
   const visits = [
-    {
-      id: 'visit_001',
-      visitor_id: 'visitor_001',
-      org_id: org.id,
-      status: 'active',
-      checkin_status: 'confirmed',
-      badge_raw_media_id: 'media_badge_raw_001',
-      badge_encoded_media_id: 'media_badge_enc_001',
-      badge_render_error: null,
-      badge_encode_error: null,
-      version: 3,
-      scheduled_start: '2026-07-10T15:30:00Z',
-      scheduled_end: null,
-      created_at: '2026-07-10T15:28:00Z',
-      updated_at: '2026-07-10T16:05:00Z',
-    },
+    // A couple of completed past visits, one active now, one pending today.
+    { id: 'visit_001', visitor_id: 'visitor_003', org_id: org.id, status: 'completed', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_1', badge_encoded_media_id: 'media_benc_1', badge_render_error: null, badge_encode_error: null, version: 4, scheduled_start: iso(3 * DAY), scheduled_end: iso(3 * DAY - 4 * HOUR), created_at: iso(3 * DAY), updated_at: iso(3 * DAY - 4 * HOUR), _pipelineDone: true },
+    { id: 'visit_002', visitor_id: 'visitor_007', org_id: org.id, status: 'completed', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_2', badge_encoded_media_id: 'media_benc_2', badge_render_error: null, badge_encode_error: null, version: 4, scheduled_start: iso(1 * DAY), scheduled_end: iso(1 * DAY - 2 * HOUR), created_at: iso(1 * DAY), updated_at: iso(1 * DAY - 2 * HOUR), _pipelineDone: true },
+    { id: 'visit_003', visitor_id: 'visitor_001', org_id: org.id, status: 'active', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_3', badge_encoded_media_id: 'media_benc_3', badge_render_error: null, badge_encode_error: null, version: 3, scheduled_start: iso(2 * HOUR), scheduled_end: null, created_at: iso(2 * HOUR), updated_at: iso(1 * HOUR), _pipelineDone: true },
+    { id: 'visit_004', visitor_id: 'visitor_005', org_id: org.id, status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, scheduled_start: new Date(now + 3 * HOUR).toISOString(), scheduled_end: new Date(now + 6 * HOUR).toISOString(), created_at: iso(6 * HOUR), updated_at: iso(6 * HOUR) },
   ];
+
+  const notifications = [
+    { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null },
+    { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null },
+    { id: 'ntf_003', type: 'checkin_failed', severity: 'warning', title: 'Check-in failed at Main Lobby kiosk — no badges available', created_at: iso(3 * HOUR), read_at: null },
+    { id: 'ntf_004', type: 'visit_completed', severity: 'info', title: 'Wei Chen checked out', created_at: iso(5 * HOUR), read_at: iso(4 * HOUR) },
+    { id: 'ntf_005', type: 'review_required', severity: 'warning', title: 'New visitor requires review: Omar Hassan', created_at: iso(8 * HOUR), read_at: iso(7 * HOUR) },
+    { id: 'ntf_006', type: 'device_offline', severity: 'danger', title: 'Badge encoder BE-02 went offline', created_at: iso(26 * HOUR), read_at: iso(20 * HOUR) },
+  ];
+
+  // Simulated async badge pipeline: a fresh check-in confirms after ~4s and
+  // finishes badge render/encode after ~8s, observed lazily on read — the
+  // same eventual states the UI polls for against the live backend.
+  const promote = (v) => {
+    if (v._pipelineDone || !v._checkinStartedAt) return v;
+    const age = Date.now() - v._checkinStartedAt;
+    if (age > 4000 && v.status === 'checking_in') {
+      v.status = 'active';
+      v.checkin_status = 'confirmed';
+      v.updated_at = new Date().toISOString();
+    }
+    if (age > 8000 && v.status === 'active' && !v.badge_encoded_media_id) {
+      v.badge_raw_media_id = `media_braw_${v.id}`;
+      v.badge_encoded_media_id = `media_benc_${v.id}`;
+      v._pipelineDone = true;
+      v.updated_at = new Date().toISOString();
+    }
+    return v;
+  };
+
+  const notFound = (code) => new ManagerApiError('Not found', { code, status: 404 });
+  const conflict = (message, code) => new ManagerApiError(message, { code, status: 409 });
+
+  // Keyset-pagination façade over the in-memory list: cursor is an opaque
+  // base64 offset, present only when another page exists (per the guide,
+  // absent cursor — not short pages — is the end-of-list signal).
+  const paginate = (rows, { cursor, limit } = {}) => {
+    const pageSize = Math.min(Number(limit) || 50, 200);
+    const offset = cursor ? Number(atob(String(cursor))) || 0 : 0;
+    const page = rows.slice(offset, offset + pageSize);
+    const nextOffset = offset + pageSize;
+    const meta = { sort: '-updated_at,id', limit: pageSize };
+    if (nextOffset < rows.length) meta.cursor = btoa(String(nextOffset));
+    return { data: page, meta };
+  };
+
+  const stripInternal = (v) => {
+    const copy = { ...v };
+    delete copy._checkinStartedAt;
+    delete copy._pipelineDone;
+    return copy;
+  };
+
+  const csv = (value) => String(value).toLowerCase().split(',').map((s) => s.trim());
 
   return {
     request: async () => ({ data: {} }),
@@ -402,63 +419,192 @@ export function createMockManagerApi() {
       },
     }),
     listAuthScopes: async () => ({ data: {} }),
-    getScopeTree: async () => ({
-      data: { organization: { ...org, divisions: [] } },
-    }),
+    getScopeTree: async () => ({ data: { organization: { ...org, divisions: [] } } }),
 
-    listVisitors: async () => ({
-      data: visitors,
-      meta: { sort: '-updated_at,id', limit: 50 },
-    }),
-    getVisitor: async (visitorId) => ({
-      data: visitors.find((v) => v.id === visitorId) || { ...visitors[0], id: visitorId },
-    }),
-    createVisitor: async (payload) => ({
-      data: { id: `visitor_${crypto.randomUUID()}`, version: 1, ...payload },
-    }),
-    updateVisitor: async (visitorId, payload) => ({
-      data: { id: visitorId, ...payload },
-    }),
+    listVisitors: async (params = {}) => {
+      let rows = [...visitors];
+      if (params.name) {
+        const q = String(params.name).toLowerCase();
+        rows = rows.filter((v) =>
+          `${v.first_name} ${v.last_name}`.toLowerCase().includes(q) || v.email.includes(q));
+      }
+      if (params.status) rows = rows.filter((v) => csv(params.status).includes(v.status));
+      if (params.type) rows = rows.filter((v) => csv(params.type).includes(v.type));
+      if (params.company) {
+        const q = String(params.company).toLowerCase();
+        rows = params.company_match === 'like'
+          ? rows.filter((v) => v.company.toLowerCase().includes(q))
+          : rows.filter((v) => csv(params.company).includes(v.company.toLowerCase()));
+      }
+      rows.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+      return paginate(rows, params);
+    },
+    getVisitor: async (visitorId) => {
+      const found = visitors.find((v) => v.id === visitorId);
+      if (!found) throw notFound('VISITOR_NOT_FOUND');
+      return { data: found };
+    },
+    createVisitor: async (payload) => {
+      const created = {
+        id: `visitor_${crypto.randomUUID().slice(0, 8)}`,
+        organization_id: org.id,
+        status: 'active',
+        type: 'guest',
+        notes: '',
+        photo_media_id: null,
+        version: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...payload,
+      };
+      visitors.unshift(created);
+      return { data: created };
+    },
+    updateVisitor: async (visitorId, payload) => {
+      const found = visitors.find((v) => v.id === visitorId);
+      if (!found) throw notFound('VISITOR_NOT_FOUND');
+      Object.assign(found, payload, {
+        version: found.version + 1,
+        updated_at: new Date().toISOString(),
+      });
+      return { data: found };
+    },
     uploadVisitorPhoto: async () => ({ data: { status: 'indexed' } }),
     faceReindexVisitor: async () => ({ data: { status: 'queued' } }),
     bulkImportVisitors: async () => ({ data: { rows: [] } }),
 
-    checkinPreflight: async () => ({ data: { ok: true } }),
-    checkin: async (visitorId) => ({
-      data: {
-        ...visits[0],
-        id: `visit_${crypto.randomUUID()}`,
+    checkinPreflight: async (visitorId) => {
+      const visitor = visitors.find((v) => v.id === visitorId);
+      if (!visitor) throw notFound('VISITOR_NOT_FOUND');
+      const open = visits.some((v) => v.visitor_id === visitorId && ['checking_in', 'active', 'checking_out'].includes(promote(v).status));
+      return { data: { ok: !open, reason: open ? 'VISITOR_ALREADY_CHECKED_IN' : null } };
+    },
+    checkin: async (visitorId) => {
+      const visitor = visitors.find((v) => v.id === visitorId);
+      if (!visitor) throw notFound('VISITOR_NOT_FOUND');
+      if (visitor.status === 'pending_review') {
+        throw new ManagerApiError('Visitor requires review before check-in.', { code: 'REVIEW_REQUIRED', status: 428 });
+      }
+      if (visits.some((v) => v.visitor_id === visitorId && ['checking_in', 'active', 'checking_out'].includes(promote(v).status))) {
+        throw conflict('Visitor is already checked in.', 'VISITOR_ALREADY_CHECKED_IN');
+      }
+      const visit = {
+        id: `visit_${visitSeq++}`,
         visitor_id: visitorId,
+        org_id: org.id,
         status: 'checking_in',
         checkin_status: 'pending',
         badge_raw_media_id: null,
         badge_encoded_media_id: null,
-      },
-    }),
+        badge_render_error: null,
+        badge_encode_error: null,
+        version: 1,
+        scheduled_start: new Date().toISOString(),
+        scheduled_end: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        _checkinStartedAt: Date.now(),
+      };
+      visits.unshift(visit);
+      return { data: stripInternal(visit) };
+    },
     listScheduledCheckins: async () => ({ data: [], meta: { limit: 50 } }),
 
-    listVisits: async () => ({ data: visits, meta: { sort: '-created_at,id', limit: 50 } }),
-    getVisit: async (visitId) => ({
-      data: { ...visits[0], id: visitId },
-    }),
-    createVisit: async (payload) => ({
-      data: {
-        ...visits[0],
-        id: `visit_${crypto.randomUUID()}`,
+    listVisits: async (params = {}) => {
+      let rows = visits.map(promote);
+      if (params.visitor_id) rows = rows.filter((v) => v.visitor_id === params.visitor_id);
+      if (params.status) rows = rows.filter((v) => csv(params.status).includes(v.status));
+      rows = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      const page = paginate(rows, params);
+      page.data = page.data.map(stripInternal);
+      page.meta.sort = '-created_at,id';
+      const wantVisitor = String(params.expand || '').includes('visitor');
+      if (wantVisitor) {
+        page.includes = {
+          visitors: Object.fromEntries(
+            page.data.map((v) => [v.visitor_id, visitors.find((x) => x.id === v.visitor_id)]).filter(([, x]) => x),
+          ),
+        };
+      }
+      return page;
+    },
+    getVisit: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      return { data: stripInternal(promote(found)) };
+    },
+    createVisit: async (payload) => {
+      const visit = {
+        id: `visit_${visitSeq++}`,
+        org_id: org.id,
         status: 'pending',
         checkin_status: null,
         badge_raw_media_id: null,
         badge_encoded_media_id: null,
+        badge_render_error: null,
+        badge_encode_error: null,
+        version: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         ...payload,
-      },
-    }),
-    updateVisit: async (visitId, payload) => ({ data: { id: visitId, ...payload } }),
-    confirmVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'active' } }),
-    checkoutVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'checking_out' } }),
-    completeVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'completed' } }),
-    cancelVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'cancelled' } }),
+      };
+      visits.unshift(visit);
+      return { data: visit };
+    },
+    updateVisit: async (visitId, payload) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      Object.assign(found, payload, { version: found.version + 1, updated_at: new Date().toISOString() });
+      return { data: stripInternal(found) };
+    },
+    confirmVisit: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      if (found.status !== 'pending') throw conflict('Only pending visits can be confirmed.', 'INVALID_STATUS_TRANSITION');
+      Object.assign(found, { status: 'active', checkin_status: 'confirmed', updated_at: new Date().toISOString() });
+      return { data: stripInternal(found) };
+    },
+    checkoutVisit: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      promote(found);
+      if (!['active', 'checking_out'].includes(found.status)) {
+        throw conflict('Visit is not eligible for checkout.', 'INVALID_STATUS_TRANSITION');
+      }
+      Object.assign(found, { status: 'completed', updated_at: new Date().toISOString() });
+      return { data: stripInternal(found) };
+    },
+    completeVisit: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      Object.assign(found, { status: 'completed', updated_at: new Date().toISOString() });
+      return { data: stripInternal(found) };
+    },
+    cancelVisit: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      promote(found);
+      if (found.status !== 'pending') {
+        throw conflict('Only pending visits can be cancelled.', 'INVALID_STATUS_TRANSITION');
+      }
+      Object.assign(found, { status: 'cancelled', updated_at: new Date().toISOString() });
+      return { data: stripInternal(found) };
+    },
     assignBadge: async (visitId) => ({ data: { id: visitId } }),
-    rerenderBadge: async (visitId) => ({ data: { id: visitId, badge_status: 'rendering' } }),
+    rerenderBadge: async (visitId) => {
+      const found = visits.find((v) => v.id === visitId);
+      if (!found) throw notFound('NOT_FOUND');
+      Object.assign(found, {
+        badge_render_error: null,
+        badge_encode_error: null,
+        badge_raw_media_id: null,
+        badge_encoded_media_id: null,
+        _pipelineDone: false,
+        _checkinStartedAt: Date.now(),
+        updated_at: new Date().toISOString(),
+      });
+      return { data: stripInternal(found) };
+    },
     listVisitEvents: async () => ({ data: [], meta: { limit: 50 } }),
 
     listStations: async () => ({
@@ -476,12 +622,44 @@ export function createMockManagerApi() {
     suggestHostContacts: async () => ({ data: [] }),
     getHostContact: async (orgId, hostContactId) => ({ data: { id: hostContactId } }),
 
-    listNotifications: async () => ({ data: notifications, meta: { limit: 50 } }),
-    markNotificationRead: async (notificationId) => ({ data: { id: notificationId, read: true } }),
-    markNotificationsRead: async () => ({ data: { updated: notifications.length } }),
+    listNotifications: async (params = {}) => paginate(
+      [...notifications].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+      params,
+    ),
+    markNotificationRead: async (notificationId) => {
+      const found = notifications.find((n) => n.id === notificationId);
+      if (!found) throw notFound('NOT_FOUND');
+      found.read_at = found.read_at || new Date().toISOString();
+      return { data: found };
+    },
+    markNotificationsRead: async (payload = {}) => {
+      const ids = payload.ids || notifications.map((n) => n.id);
+      let updated = 0;
+      for (const n of notifications) {
+        if (ids.includes(n.id) && !n.read_at) {
+          n.read_at = new Date().toISOString();
+          updated += 1;
+        }
+      }
+      return { data: { updated } };
+    },
     createNotificationStreamTicket: async () => ({ data: { ticket: `tkt_${crypto.randomUUID()}` } }),
 
-    getMetrics: async () => ({ data: { active_visits: 1, visitors_today: 4 } }),
+    // Metrics shapes are PROVISIONAL in the spec (decision #10) — the mock
+    // exposes a simple preset map computed from live mock state.
+    getMetrics: async () => {
+      const live = visits.map(promote);
+      return {
+        data: {
+          on_site_now: live.filter((v) => ['active', 'checking_out'].includes(v.status)).length,
+          checking_in: live.filter((v) => v.status === 'checking_in').length,
+          visits_today: live.filter((v) => Date.now() - new Date(v.created_at).getTime() < DAY).length,
+          visitors_total: visitors.filter((v) => v.status !== 'archived').length,
+          pending_review: visitors.filter((v) => v.status === 'pending_review').length,
+          unread_notifications: notifications.filter((n) => !n.read_at).length,
+        },
+      };
+    },
     getCheckinOpsMetrics: async () => ({ data: {} }),
     getMetricsTimeseries: async () => ({ data: [] }),
     getLiveMetricsTimeseries: async () => ({ data: [] }),
