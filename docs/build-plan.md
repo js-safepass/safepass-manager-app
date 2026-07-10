@@ -76,7 +76,7 @@ extraction with tests beside source (D11), copy-per-app seeding (D12).
 
 | # | Decision | Resolution |
 |---|---|---|
-| 1 | Cognito app client ID | Provided later; env-var based (`VITE_COGNITO_CLIENT_ID`), not blocking — dev-bypass + mock until then |
+| 1 | Cognito app client ID | Provisioned 2026-07-10: `5grgviekbiv44ab9llnsdqnp55` (in `.env.example` as `VITE_COGNITO_CLIENT_ID`). Callback-URL registration + bridge passthrough per HANDOFF-AUTH-TEMPLATE still to verify |
 | 2 | Hostname / scheme | `manage.safepass.com`; deep-link `safepassmanager://`; `appId` `com.safepass.manager` |
 | 3 | App slug | `manager` (repo already `safepass-manager-app`; accepted deviation from the `safepass-<name>-web` naming shape) |
 | 4 | Credential persistence (kiosk Layer 2's keystore half) | **No** — attended app, personal login, tokens in-memory on web. Persistence files (`secureStorage`, `kioskCredentials`, restore/refresh failure policies) removed |
