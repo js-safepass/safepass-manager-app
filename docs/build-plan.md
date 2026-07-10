@@ -133,6 +133,24 @@ Ported so every subsequent screen is built once, in the house style:
 - Login/Home restyled on the system; lint/tests/build fully clean (zero
   warnings — user requirement).
 
+## Core screens v1 ✅ (shipped 2026-07-10, `feat/phase1-core-screens`)
+
+First user-visible cut, fully drivable on the stateful mock: routed shell
+(navy sidebar, offcanvas below lg, pinned topbar), Dashboard (live metric
+tiles + notification feed), Visitors (server-filtered keyset-paginated
+directory, create/edit modal with If-Match, detail + visit history), Visits
+(15s-polled ops list, lifecycle actions gated by ported `visitHelpers`,
+badge-pipeline chips), Notifications (shared provider: 15s poll, optimistic
+read-state, sidebar unread badge). One-call front-desk check-in from visitor
+detail with gate-failure surfacing (428 review, 409 already-in). Mock
+simulates the async badge pipeline so `checking_in → active → encoded_ready`
+progresses live on screen.
+
+Still open from the phases below: real auth bootstrap (whoami/scopes session
++ scope selector + token refresh), station picker on check-in, host attach,
+visit scheduling, SSE notifications, dashboards beyond tiles, tracking map,
+photos + bulk import, native shells.
+
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 
 The brief's §5 cross-cutting requirements all live in the **centralized client
