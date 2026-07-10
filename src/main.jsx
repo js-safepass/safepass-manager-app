@@ -1,9 +1,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
+// Design system ported from sentinel-ui (see docs/build-plan.md Phase 0.5).
+// DM Sans is self-hosted via @fontsource (CSP has no external style/font
+// sources; app must stay servable on-prem). SCSS import order matters:
+// datum (base) → custom (SafePass) → customizer (runtime vars, loads LAST
+// so its :root variables win).
+import '@fontsource/dm-sans/400.css'
+import '@fontsource/dm-sans/500.css'
+import '@fontsource/dm-sans/700.css'
+import '@fortawesome/fontawesome-free/css/all.min.css'
+import './assets/scss/datum.scss'
+import './assets/scss/custom.scss'
+import './assets/scss/customizer.scss'
 import App from './App.jsx'
 import { AuthProvider } from './state/AuthContext.jsx'
 import { NetworkProvider } from './state/NetworkContext.jsx'
+import { FlashProvider } from './lib/flashProvider.jsx'
 import ErrorBoundary from './pages/components/ErrorBoundary.jsx'
 import { isNative } from './lib/platform.js'
 
@@ -34,7 +46,9 @@ createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <NetworkProvider>
         <AuthProvider>
-          <App />
+          <FlashProvider>
+            <App />
+          </FlashProvider>
         </AuthProvider>
       </NetworkProvider>
     </ErrorBoundary>

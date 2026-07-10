@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
+import { Alert, Button, Spinner } from 'react-bootstrap';
+import SectionCard from '../components/SectionCard.jsx';
 import { useAuth } from '../state/useAuth.js';
 import { buildAuthorizeUrl, exchangeCodeForToken } from '../lib/cognitoHostedUi.js';
 import { generateCodeChallenge, generateCodeVerifier } from '../lib/pkce.js';
@@ -80,60 +82,62 @@ const Login = () => {
     exchange();
   }, [signIn]);
 
-  // Native: exchange the auth code received via appUrlOpen callback.
-  const handleNativeCallback = async (url) => {
-    try {
-      const parsed = new URL(url);
-      const code = parsed.searchParams.get('code');
-      const returnedState = parsed.searchParams.get('state');
-      const errorParam = parsed.searchParams.get('error');
-
-      // Close the in-app browser
-      const { Browser } = await import('@capacitor/browser');
-      await Browser.close().catch(() => {});
-
-      if (errorParam) {
-        setLocalError(getUserFacingError(
-          parsed.searchParams.get('error_description') || errorParam, 'signIn',
-        ));
-        setLoading(false);
-        return;
-      }
-
-      if (!code) return;
-
-      const storedState = sessionStorage.getItem(storageKeys.state);
-      const verifier = sessionStorage.getItem(storageKeys.verifier);
-
-      if (!storedState || storedState !== returnedState) {
-        setLocalError('Invalid sign-in state. Please try again.');
-        setLoading(false);
-        return;
-      }
-      if (!verifier) {
-        setLocalError('Missing PKCE verifier. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      const tokenResponse = await exchangeCodeForToken({ code, codeVerifier: verifier });
-      sessionStorage.removeItem(storageKeys.state);
-      sessionStorage.removeItem(storageKeys.verifier);
-      const accessToken = tokenResponse.access_token || tokenResponse.id_token;
-      if (!accessToken) {
-        throw new Error('Token response missing access token.');
-      }
-      await signIn({ token: accessToken });
-    } catch (err) {
-      setLocalError(getUserFacingError(err, 'signIn'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Register the native URL callback listener on mount.
+  // Register the native URL callback listener on mount. The exchange handler
+  // lives inside the effect (it is only reachable from this listener), which
+  // also keeps the dependency array honest.
   useEffect(() => {
     if (!isNative) return;
+
+    // Native: exchange the auth code received via appUrlOpen callback.
+    const handleNativeCallback = async (url) => {
+      try {
+        const parsed = new URL(url);
+        const code = parsed.searchParams.get('code');
+        const returnedState = parsed.searchParams.get('state');
+        const errorParam = parsed.searchParams.get('error');
+
+        // Close the in-app browser
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.close().catch(() => {});
+
+        if (errorParam) {
+          setLocalError(getUserFacingError(
+            parsed.searchParams.get('error_description') || errorParam, 'signIn',
+          ));
+          setLoading(false);
+          return;
+        }
+
+        if (!code) return;
+
+        const storedState = sessionStorage.getItem(storageKeys.state);
+        const verifier = sessionStorage.getItem(storageKeys.verifier);
+
+        if (!storedState || storedState !== returnedState) {
+          setLocalError('Invalid sign-in state. Please try again.');
+          setLoading(false);
+          return;
+        }
+        if (!verifier) {
+          setLocalError('Missing PKCE verifier. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        const tokenResponse = await exchangeCodeForToken({ code, codeVerifier: verifier });
+        sessionStorage.removeItem(storageKeys.state);
+        sessionStorage.removeItem(storageKeys.verifier);
+        const accessToken = tokenResponse.access_token || tokenResponse.id_token;
+        if (!accessToken) {
+          throw new Error('Token response missing access token.');
+        }
+        await signIn({ token: accessToken });
+      } catch (err) {
+        setLocalError(getUserFacingError(err, 'signIn'));
+      } finally {
+        setLoading(false);
+      }
+    };
 
     let cancelled = false;
 
@@ -180,13 +184,29 @@ const Login = () => {
   };
 
   return (
-    <div>
-      <h1>Staff Sign-In</h1>
-      <p>Sign in with your SafePass account to continue</p>
-      <button className="cta" onClick={handleHostedLogin} disabled={loading || status === 'signing_in'}>
-        {loading ? 'Redirecting...' : 'Sign In'}
-      </button>
-      {(localError || error) && <p style={{ color: 'var(--sp-text-error)' }}>{localError || error}</p>}
+    <div className="d-flex align-items-center justify-content-center min-vh-100">
+      <SectionCard title="Staff Sign-In" bodyClassName="text-center" className="mb-0">
+        <p className="text-muted">Sign in with your SafePass account to continue</p>
+        <Button
+          variant="primary"
+          onClick={handleHostedLogin}
+          disabled={loading || status === 'signing_in'}
+        >
+          {loading ? (
+            <>
+              <Spinner animation="border" size="sm" className="me-2" />
+              Redirecting…
+            </>
+          ) : (
+            'Sign In'
+          )}
+        </Button>
+        {(localError || error) && (
+          <Alert variant="danger" className="mt-3 mb-0">
+            {localError || error}
+          </Alert>
+        )}
+      </SectionCard>
     </div>
   );
 };

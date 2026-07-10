@@ -53,6 +53,19 @@ export default defineConfig(({ mode }) => ({
     __APP_BUILD_ID__: JSON.stringify(buildId),
   },
 
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // The SCSS theme under src/assets/scss is ported from sentinel-ui
+        // and carries its upstream Sass tech debt (@import syntax, legacy
+        // color/global built-ins). Rewriting it here would fork the theme
+        // from upstream — silence the named deprecations instead; any
+        // migration should happen in sentinel-ui first and be re-ported.
+        silenceDeprecations: ['import', 'global-builtin', 'color-functions', 'if-function'],
+      },
+    },
+  },
+
   // Strip console.debug and console.warn from production builds.
   // console.error is preserved for genuine runtime errors.
   esbuild: mode === 'production' ? {
