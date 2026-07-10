@@ -12,15 +12,58 @@ baseline.
 Sole developer; phases are effort-ordered, not calendar-scheduled. Each phase lands
 via the normal PR flow once CI/branch protection is up.
 
-## Current state (2026-07-10)
+## Current state (2026-07-10, end of Phase 0)
 
-- Git initialized; `main` / `develop` / `staging` pushed to
-  `js-safepass/safepass-manager-app`.
-- Chassis seeded from `safepass-kiosk-web` — still carrying **kiosk identity**
-  (`kioskApi.js`, `KioskApiError`, kiosk env vars, kiosk `capacitor.config.ts`).
-- **Not yet present:** `package.json` (no installable skeleton), `App.jsx`,
-  `CLAUDE.md` (template only), native shells (`ios/` has only scripts), Cloudflare
-  project, Cognito app client.
+- Git initialized; `main` / `develop` / `staging` on
+  `js-safepass/safepass-manager-app`; Phase 0 on `feat/phase0-bootstrap`.
+- Skeleton installed and green (`./scripts/test.sh --all`): identity pass done
+  (`managerApi.js`/`ManagerApiError`), Layer-2 persistence files removed,
+  `dpop.js` kept, mock-mode app boots (Login → Home against `whoami` +
+  notifications).
+- **Not yet present:** native shells, Cloudflare project, Cognito app client.
+
+## Reference implementation: sentinel-ui (course correction 2026-07-10)
+
+`~/Documents/PROJECTS/sentinel-ui` is the mature internal operator web app on
+the same `/v1` API — every surface this app needs already exists there. The
+original plan leaned only on the contractor OpenAPI subset; corrected posture:
+**the kiosk handoff bundle stays the chassis** (Capacitor model, auth bridge,
+env discipline, test/deploy flow), and **sentinel-ui is the source of truth
+for everything above the chassis**:
+
+- **API conventions** — its `docs/reference/front-end-API-guide.md`
+  (backend-synced), `pagination-guide.md`, `docs/standards/api-patterns.md`.
+  Confirmed: `{data, meta}` envelopes; opaque `meta.cursor` (absent = last
+  page); RFC7807 with stable top-level `code` (mixed casing — match
+  exact-per-code); `Idempotency-Key` on POST/PATCH/DELETE; **`If-Match` =
+  plain integer `version`, not the ETag string**; media IDs stored, signed
+  URLs (~15 min) fetched per render.
+- **Domain logic copied per D12, not re-derived**: `visitHelpers.js` (visit
+  lifecycle + eligibility), `statusVariants.js` (status→color),
+  `useVisitFlow.js` (badge pipeline: derive badgeStatus from
+  `badge_raw/encoded_media_id` + error fields, poll 3s),
+  `useScopedPolling.js` (visibility-aware polling, halt on 403),
+  `accessPolicy.js` (role weights — `front_desk`=30 is this app's floor).
+- **Design system** — no shared package exists; port the SCSS theme tree
+  (`src/assets/scss`, import order datum → custom → customizer), DM Sans,
+  FontAwesome 6, and the component patterns (SectionCard, SimpleTable,
+  RowActions, PageHeader, ConfirmModal, CursorList + useListQuery,
+  modal-fields tiers) per its `design-tokens.md` / `ui-ux.md` /
+  `components.md`.
+- **Bootstrap/session behaviors to mirror** (its `sessionProvider.jsx` /
+  `scopeProvider.jsx`): whoami + auth/scopes sequencing with monotonic
+  `sessionReady`, `membership_version` reconciliation, org selection
+  persisted to `localStorage['safepass.activeOrgId']` and per-org scope to
+  `safepass.scope.<orgId>`, 401-failure threshold → forced logout while 403
+  is never counted, notifications via SSE stream-ticket + 120s poll safety
+  net (the guide's "SSE deprecated" §6 is stale — code wins).
+
+**Discrepancies to confirm with backend** (dated confirmations go in code
+comments when resolved): `POST /v1/visits/{id}/confirm` is used by sentinel-ui
+but absent from the contractor OpenAPI subset; sentinel-ui bootstraps
+`GET /v1/me` while the subset lists `/users/me`; token refresh — sentinel-ui
+uses OIDC silent refresh, the chassis re-runs the auth flow on expiry (an
+all-day attended app needs refresh; decide the mechanism in Phase 1).
 
 ## Decisions inherited (do not re-litigate)
 
@@ -65,6 +108,24 @@ Per `HANDOFF-BOOTSTRAP.md` steps 1–3:
 
 **Exit:** app boots against mock; lint/tests/build green; CLAUDE.md placeholder-free.
 
+## Phase 0.5 — UI foundation port from sentinel-ui
+
+Before any real screens: port the design system so every subsequent screen is
+built once, in the house style.
+
+- Deps: `react-bootstrap` + `bootstrap`, `sass`, DM Sans, FontAwesome 6 Free.
+- Copy the SCSS tree from sentinel-ui `src/assets/scss/` preserving the
+  datum → custom → customizer import order (customizer loads last and wins).
+- Port core components: `SectionCard`, `SimpleTable`, `RowActions`,
+  `PageHeader`, `ConfirmModal`, flash provider (`useFlash` cadence:
+  success 6s / info 8s / warning 10s / error 12s), loading/empty-state
+  conventions. `CursorList` + `useListQuery` come with the first list screen.
+- Copy domain libs with tests: `statusVariants.js`, `visitHelpers.js`,
+  `useScopedPolling.js`; adapt `accessPolicy.js` to this app's allowlist.
+- Risk to verify early: react-bootstrap on React 19 (sentinel-ui is React 18).
+  If it fights, pinning React 18 here is acceptable — flag it as a deviation
+  from the chassis' React 19 line before doing so.
+
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 
 The brief's §5 cross-cutting requirements all live in the **centralized client
@@ -78,10 +139,17 @@ retrofit, so it must be the only place requests are made:
 - Signed-URL discipline: store media IDs, never cache URLs across renders/sessions
 - Tenant-safe 404 handling; bounded polling that stops on 401/403
 
+Organize endpoints into namespaced modules mirroring sentinel-ui's
+datamanager (`attachX(ctx)` per resource, per-namespace version cache feeding
+If-Match, `listPage`/auto-paginating `list`), and add token refresh (see the
+discrepancy note above — decide silent-refresh mechanism against the bridge).
+
 Auth: Layer 1 per AUTH-TEMPLATE (dev callback first, hosted later). Bootstrap
-`/v1/whoami` + `/v1/auth/scopes`; scope selector (org → division → location →
-building → station) driven by grants; re-fetch on `membership_version` change or
-unexpected 403; no-access state. Scope-local timezone resolution utility.
+`/v1/whoami` + `/v1/auth/scopes` mirroring sentinel-ui's sessionProvider
+semantics (monotonic `sessionReady`, membership_version reconciliation,
+401-threshold logout / 403 not counted, org + scope persistence keys); scope
+selector (org → division → location → building → station) driven by grants;
+no-access state. Scope-local timezone resolution utility.
 
 **Exit:** login round-trips in dev; scope selection works against mock; every
 cross-cutting behavior has a unit-tested `lib/` module.
@@ -109,10 +177,14 @@ against mock, then verified against staging.
   optional preflight driving button state, `POST /visitors/{id}/checkin` → 202 +
   async `checkin_status`; gate failures mapped in `userErrors.js` (428 review/
   background-check, 409 already-in / no-badges, 429 queue full, 503 unavailable)
-- Badge pipeline: hidden when badge tracking off; render/encode progress, errors,
-  retry/re-render per state+permissions; badge URLs treated as short-lived
-- Notifications: poll ~15s focused / ~60s unfocused, SSE stream via stream-ticket
-  with re-ticket on reconnect; mark-read single + bulk; unknown types render safely
+- Badge pipeline: port sentinel-ui's `useVisitFlow.js` (badgeStatus from
+  `badge_*_media_id`/error fields, 3s poll with hidden-tab backoff); hidden
+  entirely when `badge_tracking=false`; retry via rerender-badge; badge URLs
+  treated as short-lived
+- Notifications: port sentinel-ui's notificationsProvider (SSE via
+  stream-ticket, re-ticket after 3 consecutive errors + 5s, 120s poll safety
+  net, optimistic mark-read with revert, `read_at`-derived unread, defensive
+  normalization); unknown types render safely
 
 **Exit:** journey 5 (fallback check-in) end-to-end on staging with a real badge
 pipeline; journey 1's notification half live.

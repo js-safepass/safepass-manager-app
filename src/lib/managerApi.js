@@ -124,10 +124,12 @@ export function createManagerApi({
       headers.set('Idempotency-Key', idempotencyKey || crypto.randomUUID());
     }
 
-    // ETag concurrency: update screens re-fetch on 412/409 and retry with
-    // the fresh version (brief §5 "Concurrency").
-    if (options.ifMatch) {
-      headers.set('If-Match', options.ifMatch);
+    // Version concurrency: If-Match carries the resource's integer `version`
+    // as a plain string (NOT the quoted ETag) — matches sentinel-ui's
+    // datamanager convention (core.js/visitorsApi.js, verified 2026-07-10).
+    // Missing where required → 428; stale version → 409: re-fetch and retry.
+    if (options.ifMatch !== undefined && options.ifMatch !== null) {
+      headers.set('If-Match', String(options.ifMatch));
     }
 
     if (attachProof) {
@@ -212,6 +214,12 @@ export function createManagerApi({
         { method: 'PATCH', path: `/v1/visits/${visitId}`, body: payload },
         { ifMatch },
       ),
+    // Note: sentinel-ui's CheckInModal/useVisitFlow also use
+    // POST /v1/visits/{id}/confirm (with check_cleared for background-check
+    // orgs). That path is NOT in the contractor OpenAPI subset — confirm with
+    // backend that it belongs on this app's allowlist before Phase 3.
+    confirmVisit: (visitId, payload = {}) =>
+      managerFetch({ method: 'POST', path: `/v1/visits/${visitId}/confirm`, body: payload }),
     checkoutVisit: (visitId, payload = {}) =>
       managerFetch({ method: 'POST', path: `/v1/visits/${visitId}/checkout`, body: payload }),
     completeVisit: (visitId, payload = {}) =>
@@ -322,20 +330,47 @@ export function createMockManagerApi() {
     },
   ];
 
+  // Unread is derived from a null read_at (sentinel-ui notificationsProvider
+  // convention), not a boolean flag.
   const notifications = [
     {
       id: 'ntf_001',
       type: 'visitor_checked_in',
       title: 'Jane Doe checked in',
+      severity: 'info',
       created_at: '2026-07-10T16:05:00Z',
-      read: false,
+      read_at: null,
     },
     {
       id: 'ntf_002',
       type: 'checkin_failed',
       title: 'Check-in failed at Main Lobby',
+      severity: 'warning',
       created_at: '2026-07-10T15:47:00Z',
-      read: true,
+      read_at: '2026-07-10T15:50:00Z',
+    },
+  ];
+
+  // Visit shape mirrors the live contract fields the visit/badge flows key
+  // off (visitHelpers.js / useVisitFlow.js in sentinel-ui): status lifecycle
+  // pending|checking_in|active|checking_out|completed|failed|cancelled,
+  // checkin_status, and the badge pipeline media/error fields.
+  const visits = [
+    {
+      id: 'visit_001',
+      visitor_id: 'visitor_001',
+      org_id: org.id,
+      status: 'active',
+      checkin_status: 'confirmed',
+      badge_raw_media_id: 'media_badge_raw_001',
+      badge_encoded_media_id: 'media_badge_enc_001',
+      badge_render_error: null,
+      badge_encode_error: null,
+      version: 3,
+      scheduled_start: '2026-07-10T15:30:00Z',
+      scheduled_end: null,
+      created_at: '2026-07-10T15:28:00Z',
+      updated_at: '2026-07-10T16:05:00Z',
     },
   ];
 
@@ -382,19 +417,38 @@ export function createMockManagerApi() {
 
     checkinPreflight: async () => ({ data: { ok: true } }),
     checkin: async (visitorId) => ({
-      data: { id: `visit_${crypto.randomUUID()}`, visitor_id: visitorId, checkin_status: 'queued' },
+      data: {
+        ...visits[0],
+        id: `visit_${crypto.randomUUID()}`,
+        visitor_id: visitorId,
+        status: 'checking_in',
+        checkin_status: 'pending',
+        badge_raw_media_id: null,
+        badge_encoded_media_id: null,
+      },
     }),
     listScheduledCheckins: async () => ({ data: [], meta: { limit: 50 } }),
 
-    listVisits: async () => ({ data: [], meta: { limit: 50 } }),
-    getVisit: async (visitId) => ({ data: { id: visitId, status: 'active' } }),
+    listVisits: async () => ({ data: visits, meta: { sort: '-created_at,id', limit: 50 } }),
+    getVisit: async (visitId) => ({
+      data: { ...visits[0], id: visitId },
+    }),
     createVisit: async (payload) => ({
-      data: { id: `visit_${crypto.randomUUID()}`, status: 'pending', ...payload },
+      data: {
+        ...visits[0],
+        id: `visit_${crypto.randomUUID()}`,
+        status: 'pending',
+        checkin_status: null,
+        badge_raw_media_id: null,
+        badge_encoded_media_id: null,
+        ...payload,
+      },
     }),
     updateVisit: async (visitId, payload) => ({ data: { id: visitId, ...payload } }),
-    checkoutVisit: async (visitId) => ({ data: { id: visitId, status: 'checking_out' } }),
-    completeVisit: async (visitId) => ({ data: { id: visitId, status: 'completed' } }),
-    cancelVisit: async (visitId) => ({ data: { id: visitId, status: 'cancelled' } }),
+    confirmVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'active' } }),
+    checkoutVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'checking_out' } }),
+    completeVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'completed' } }),
+    cancelVisit: async (visitId) => ({ data: { ...visits[0], id: visitId, status: 'cancelled' } }),
     assignBadge: async (visitId) => ({ data: { id: visitId } }),
     rerenderBadge: async (visitId) => ({ data: { id: visitId, badge_status: 'rendering' } }),
     listVisitEvents: async () => ({ data: [], meta: { limit: 50 } }),

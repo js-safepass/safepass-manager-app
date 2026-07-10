@@ -1,0 +1,75 @@
+/* Placeholder styles for the Phase-0 skeleton ONLY.
+ *
+ * The real UI foundation is ported from sentinel-ui's SCSS theme
+ * (src/assets/scss: datum → custom → customizer import order, DM Sans,
+ * SectionCard/SimpleTable conventions) in the UI-foundation phase — see
+ * docs/build-plan.md. Do not grow this file; it gets replaced. Palette
+ * values below approximate sentinel-ui's runtime tokens so the skeleton
+ * doesn't look alien next to it. */
+
+:root {
+  --sp-primary: #3378ff;
+  --sp-primary-dark: #0c2556;
+  --sp-body-bg: #f9f9f9;
+  --sp-text: #324253;
+  --sp-heading: #213446;
+  --sp-text-error: #c03221;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--sp-body-bg);
+  color: var(--sp-text);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 {
+  color: var(--sp-heading);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 60, 179, 0.05);
+  padding: 24px;
+  margin-bottom: 2rem;
+}
+
+button.cta {
+  background: var(--sp-primary);
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error-boundary {
+  max-width: 480px;
+  margin: 15vh auto 0;
+  padding: 24px;
+  text-align: center;
+}

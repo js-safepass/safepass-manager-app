@@ -59,7 +59,7 @@ test('managerFetch does not send Idempotency-Key on GETs', async () => {
   }
 });
 
-test('updateVisitor sends If-Match when given a version', async () => {
+test('updateVisitor sends If-Match as the plain integer version string', async () => {
   const originalFetch = globalThis.fetch;
   const calls = captureFetch(jsonResponse(200, { data: { id: 'visitor_1' } }));
   try {
@@ -67,8 +67,10 @@ test('updateVisitor sends If-Match when given a version', async () => {
       baseUrl: 'https://api.local',
       getAccessToken: () => 'jwt-token',
     });
-    await api.updateVisitor('visitor_1', { notes: 'x' }, { ifMatch: '"4"' });
-    expect(calls[0].init.headers.get('If-Match')).toBe('"4"');
+    // The sentinel-ui convention: If-Match carries data.version as-is
+    // (no quotes, no W/ prefix) — the backend compares versions, not ETags.
+    await api.updateVisitor('visitor_1', { notes: 'x' }, { ifMatch: 4 });
+    expect(calls[0].init.headers.get('If-Match')).toBe('4');
     expect(calls[0].init.method).toBe('PATCH');
   } finally {
     globalThis.fetch = originalFetch;
