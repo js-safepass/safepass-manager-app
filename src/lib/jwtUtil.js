@@ -1,5 +1,5 @@
 // Minimal JWT decoder for extracting claims we don't need to verify.
-// The kioskJwt is already trusted (issued by Cognito to this client via OAuth),
+// The JWT is already trusted (issued by Cognito to this client via OAuth),
 // so we don't re-validate signatures here — only parse the payload for the
 // claims we care about (e.g. `sub` for user identity binding).
 //
@@ -47,7 +47,7 @@ export function decodeJwtPayload(token) {
 }
 
 /**
- * Extract the Cognito user subject identifier from a kioskJwt.
+ * Extract the Cognito user subject identifier from a Cognito JWT.
  * Returns null if the token is malformed or has no `sub` claim.
  *
  * @param {string} token

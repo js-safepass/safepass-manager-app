@@ -1,44 +1,26 @@
-// Retry helpers shared between refreshSession and restore-validate.
+// Retry helpers — the single place that decides whether a backend error is
+// permanent (give up / re-auth) or transient (back off and retry). Nothing
+// else in the app makes this call (DECISIONS D13 in the seed bundle).
 //
-// The kiosk has two paths that must classify backend errors and decide
-// whether to give up or back off:
-//   - refreshSession: a transient 5xx or network blip should not kick the
-//     kiosk to reauth. Only an authoritative 401/403/404 or a known
-//     terminal error code should.
-//   - restore-validate: same logic for the on-launch /v1/kiosk/session/me
-//     call so a backend deploy blip doesn't wipe every iPad's Keychain.
-//
-// See docs/unattended-session-longevity.md §"Refresh retry policy".
+// Adapted from the kiosk chassis 2026-07-10: classification logic copied
+// verbatim; the kiosk-session-specific code exceptions were removed because
+// the manager surface has no device session. Add manager-surface exceptions
+// here (with a dated backend confirmation) as they are discovered.
 
-import { KioskApiError } from './kioskApi.js';
+import { ManagerApiError } from './managerApi.js';
 
 // Exponential schedule: 5s, 15s, 45s, 2m, 4m. Five attempts after the
-// initial call, ~7 minutes total before we give up and trigger reauth.
+// initial call, ~7 minutes total before we give up.
 export const TRANSIENT_BACKOFF_MS = [5_000, 15_000, 45_000, 120_000, 240_000];
 
-// Error codes that should never be retried — the session is invalid,
-// revoked, or otherwise unrecoverable without a fresh sign-in.
-// Includes both today's codes and PR1's planned additions; entries that
-// don't yet appear in server output are harmless until they do.
-const PERMANENT_CODES = new Set([
-  'KIOSK_SESSION_REVOKED',
-  'KIOSK_SESSION_INVALID',
-  'KIOSK_SESSION_REQUIRED',
-  'KIOSK_DPOP_INVALID',
-  'KIOSK_DPOP_REPLAY',
-  'KIOSK_DPOP_REQUIRED',
-  'KIOSK_SESSION_MAX_EXPIRED',
-  'KIOSK_SESSION_EXPIRED',
-  'KIOSK_SESSION_LOCKOUT',
-  'KIOSK_STATION_DISABLED',
-  'KIOSK_STATION_REASSIGNED',
-  'KIOSK_UNLOCK_SESSION_RESET_REQUIRED',
-]);
+// Error codes that should never be retried regardless of status — currently
+// none on the manager surface; the status-based rules below (401/403/404 and
+// other 4xx are permanent) carry the classification.
+const PERMANENT_CODES = new Set([]);
 
-export function isPermanentKioskError(error) {
-  if (!(error instanceof KioskApiError)) return false;
-  if (error.code === 'KIOSK_REFRESH_TOO_SOON') return false;
-  if (error.status === 400 && error.code === 'KIOSK_SESSION_REFRESH_FAILED') return false;
+export function isPermanentApiError(error) {
+  if (!(error instanceof ManagerApiError)) return false;
+  // 429 (rate limited / queue full) is always retryable, honoring Retry-After.
   if (error.status === 429) return false;
   if (error.status >= 500) return false;
   if (error.status === 401 || error.status === 403 || error.status === 404) return true;
@@ -48,11 +30,10 @@ export function isPermanentKioskError(error) {
 }
 
 // Server-suggested retry delay (ms) if the error carries one, else null.
-// PR1 spec puts the value in the problem body as `retry_after_seconds`
-// for 429 KIOSK_REFRESH_TOO_SOON responses, and also as a Retry-After
-// HTTP header. Body is canonical; header is the fallback (kioskApi.js
-// surfaces it onto error.retryAfter for us). Capped at 10 minutes so a
-// pathological server value can't stall the kiosk indefinitely.
+// The problem body's `retry_after_seconds` is canonical; the Retry-After
+// HTTP header is the fallback (managerApi.js surfaces it onto
+// error.retryAfter). Capped at 10 minutes so a pathological server value
+// can't stall a retry loop indefinitely.
 export function retryAfterMsFromError(error) {
   const bodySeconds = error?.details?.retry_after_seconds;
   if (typeof bodySeconds === 'number' && bodySeconds > 0) {
@@ -85,7 +66,7 @@ function abortableSleep(ms, signal) {
 }
 
 // Run an async operation with backoff on transient failures. Permanent
-// errors (per isPermanentKioskError) re-throw immediately. Abort via the
+// errors (per isPermanentApiError) re-throw immediately. Abort via the
 // passed AbortSignal cancels both in-flight sleeps and the loop.
 //
 // onTransientFailure(error, nextDelayMs, attempt) is invoked between
@@ -103,7 +84,7 @@ export async function runWithBackoff(fn, {
       return await fn({ attempt });
     } catch (error) {
       lastError = error;
-      if (isPermanentKioskError(error)) throw error;
+      if (isPermanentApiError(error)) throw error;
       if (attempt === schedule.length) throw error;
       const delay = retryAfterMsFromError(error) ?? schedule[attempt];
       try {

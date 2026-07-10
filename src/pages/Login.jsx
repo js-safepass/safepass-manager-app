@@ -6,16 +6,16 @@ import { getUserFacingError } from '../lib/userErrors.js';
 import { isNative } from '../lib/platform.js';
 
 const storageKeys = {
-  verifier: 'kiosk_pkce_verifier',
-  state: 'kiosk_pkce_state',
+  verifier: 'manager_pkce_verifier',
+  state: 'manager_pkce_state',
 };
 
-// The login page for the kiosk application, allowing users to authenticate and access the kiosk interface.
+// Staff sign-in for the SafePass Manager app.
 // Uses Cognito Hosted UI + PKCE and keeps tokens in memory only.
 //
 // On native (Capacitor), OAuth opens in an in-app browser (SFSafariViewController /
 // Chrome Custom Tabs) and the callback arrives via the registered URL scheme
-// (safepasskiosk://localhost/auth/callback) through the App plugin's appUrlOpen event.
+// (safepassmanager://localhost/auth/callback) through the App plugin's appUrlOpen event.
 
 const Login = () => {
   const { signIn, signOut, status, error } = useAuth();
@@ -65,11 +65,11 @@ const Login = () => {
         sessionStorage.removeItem(storageKeys.state);
         sessionStorage.removeItem(storageKeys.verifier);
         window.history.replaceState({}, document.title, '/');
-        const kioskToken = tokenResponse.access_token || tokenResponse.id_token;
-        if (!kioskToken) {
+        const accessToken = tokenResponse.access_token || tokenResponse.id_token;
+        if (!accessToken) {
           throw new Error('Token response missing access token.');
         }
-        await signIn({ token: kioskToken });
+        await signIn({ token: accessToken });
       } catch (exchangeError) {
         setLocalError(getUserFacingError(exchangeError, 'signIn'));
       } finally {
@@ -119,11 +119,11 @@ const Login = () => {
       const tokenResponse = await exchangeCodeForToken({ code, codeVerifier: verifier });
       sessionStorage.removeItem(storageKeys.state);
       sessionStorage.removeItem(storageKeys.verifier);
-      const kioskToken = tokenResponse.access_token || tokenResponse.id_token;
-      if (!kioskToken) {
+      const accessToken = tokenResponse.access_token || tokenResponse.id_token;
+      if (!accessToken) {
         throw new Error('Token response missing access token.');
       }
-      await signIn({ token: kioskToken });
+      await signIn({ token: accessToken });
     } catch (err) {
       setLocalError(getUserFacingError(err, 'signIn'));
     } finally {
