@@ -1,0 +1,149 @@
+name: CI (PR Gate)
+
+on:
+  pull_request:
+    branches: [develop, staging, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  # dorny/paths-filter calls the PR "list files" API on pull_request events;
+  # without this it fails with "Resource not accessible by integration",
+  # which has been killing the `changes` job (and thus all of CI) since the
+  # workflow was added.
+  pull-requests: read
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Changed Areas
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      docs_only: ${{ steps.filter.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Path filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'public/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.js'
+              - 'vitest.setup.js'
+              - 'eslint.config.js'
+              - 'wrangler.jsonc'
+              - 'capacitor.config.ts'
+              - '.github/workflows/**'
+              # Native-only PRs still run the JS gate: CI has no
+              # xcodebuild/gradle job, so lint/test/build is the only
+              # automated coverage a native change gets (native compiles
+              # are validated locally in Xcode / Android Studio).
+              - 'ios/**'
+              - 'android/**'
+              - 'scripts/**'
+            docs_only:
+              - 'docs/**'
+              - '**/*.md'
+
+  lint_and_test_develop:
+    name: Lint + Unit (develop)
+    needs: changes
+    if: ${{ !github.event.pull_request.draft && needs.changes.outputs.app == 'true' && github.base_ref == 'develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+  lint_test_build_staging_main:
+    name: Lint + Unit + Build (staging/main)
+    needs: changes
+    if: ${{ !github.event.pull_request.draft && needs.changes.outputs.app == 'true' && (github.base_ref == 'staging' || github.base_ref == 'main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  # Label-gated heavy suite. Add the `run-e2e` label to a PR to fire this.
+  # Currently a no-op stub — wire up when an `e2e` script exists.
+  e2e_optional:
+    name: E2E (label-gated)
+    needs: [changes, lint_test_build_staging_main]
+    if: ${{ !github.event.pull_request.draft && needs.changes.outputs.app == 'true' && contains(github.event.pull_request.labels.*.name, 'run-e2e') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run e2e --if-present
+
+  # Single aggregator check for branch protection: one required status check
+  # that passes when each upstream job either succeeded or was correctly
+  # skipped (e.g. docs-only PR, or wrong base branch for that gate).
+  ci_gate:
+    name: CI Gate
+    needs: [changes, lint_and_test_develop, lint_test_build_staging_main]
+    if: ${{ always() && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify upstream results
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          DEVELOP: ${{ needs.lint_and_test_develop.result }}
+          STAGING_MAIN: ${{ needs.lint_test_build_staging_main.result }}
+        run: |
+          echo "changes=$CHANGES develop=$DEVELOP staging_main=$STAGING_MAIN"
+          for r in "$CHANGES" "$DEVELOP" "$STAGING_MAIN"; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "Upstream job failed or was cancelled: $r"; exit 1 ;;
+            esac
+          done
+          echo "CI Gate passed."

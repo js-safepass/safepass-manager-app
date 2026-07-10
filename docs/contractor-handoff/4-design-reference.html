@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SafePass - Mobile Design Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     SafePass Mobile Design Guide - single-file reference.
+     All values are taken from the shipped SafePass web app.
+     Open in any browser; theme toggle top right (#light / #dark
+     in the URL pins a theme).
+     ============================================================ */
+
+  :root {
+    /* Semantic palette */
+    --sp-primary:   #3378FF;
+    --sp-secondary: #8f9fbc;
+    --sp-success:   #3cb72c;
+    --sp-warning:   #db7e06;
+    --sp-danger:    #C03221;
+    --sp-info:      #08B1BA;
+
+    --sp-primary-rgb: 51, 120, 255;
+
+    /* Scope hierarchy */
+    --sp-scope-org:      #3378FF;
+    --sp-scope-division: #20c997;
+    --sp-scope-location: #fd7e14;
+    --sp-scope-building: #6f42c1;
+    --sp-scope-floor:    #19b3b3;   /* also station */
+
+    /* Chart palette */
+    --sp-chart-1: #3378FF; --sp-chart-2: #2ec4b6; --sp-chart-3: #876cfe;
+    --sp-chart-4: #ff4b4b; --sp-chart-5: #f7b731; --sp-chart-6: #4788ff;
+    --sp-chart-7: #37e6b0;
+
+    /* Map + brand chrome */
+    --sp-map-track: #3b82f6;
+    --sp-navy: #0C2556;              /* brand nav chrome */
+
+    /* Shape & elevation */
+    --sp-radius: 0.25rem;            /* cards, buttons, badges, inputs */
+    --sp-radius-lg: 0.5rem;          /* modals, sheets */
+    --sp-shadow:    0 .5rem 1rem rgba(0,60,179,.05);
+    --sp-shadow-sm: 0 .125rem .25rem rgba(0,60,179,.05);
+    --sp-shadow-lg: 0 10px 30px 0 rgba(0,60,179,.05);
+
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  [data-theme="light"] {
+    --sp-body-bg:       #f9f9f9;
+    --sp-surface:       #ffffff;    /* cards, bars, sheets */
+    --sp-body-color:    #324253;
+    --sp-heading:       #213446;
+    --sp-muted:         #6c757d;
+    --sp-secondary-txt: rgba(50,66,83,.75);
+    --sp-border:        #efefef;
+    --sp-hover:         #e9ecef;
+
+    /* status-subtle = tint(color, 80%) / text-emphasis = shade(color, 60%) */
+    --sp-danger-subtle:  #f2d6d3; --sp-danger-emph:  #4d140d;
+    --sp-warning-subtle: #f8e5cd; --sp-warning-emph: #583202;
+    --sp-success-subtle: #d8f1d5; --sp-success-emph: #184912;
+    --sp-info-subtle:    #ceeff1; --sp-info-emph:    #03474a;
+    --sp-primary-subtle: #d6e4ff;
+
+    --sp-map-bg: #e9edf2; --sp-map-road: #ffffff; --sp-map-park: #d8e8d4;
+  }
+
+  [data-theme="dark"] {
+    --sp-body-bg:       #222222;
+    --sp-surface:       #181818;
+    --sp-body-color:    #fafafa;
+    --sp-heading:       #e3e7ef;
+    --sp-muted:         rgba(250,250,250,.6);
+    --sp-secondary-txt: rgba(250,250,250,.75);
+    --sp-border:        #3d3838;
+    --sp-hover:         #2c2c2c;
+
+    /* status-subtle = shade(color, 80%) / text-emphasis = tint(color, 40%) */
+    --sp-danger-subtle:  #260a07; --sp-danger-emph:  #d9847a;
+    --sp-warning-subtle: #2c1901; --sp-warning-emph: #e9b26a;
+    --sp-success-subtle: #0c2509; --sp-success-emph: #8ad480;
+    --sp-info-subtle:    #022325; --sp-info-emph:    #6bd0d6;
+    --sp-primary-subtle: #0a1833;
+
+    --sp-map-bg: #262b31; --sp-map-road: #343a40; --sp-map-park: #253328;
+  }
+
+  /* ============================================================
+     Page chrome (this document uses the system it describes)
+     ============================================================ */
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--sp-body-bg);
+    color: var(--sp-body-color);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    line-height: 1.5; font-size: 16px;
+    transition: background .2s, color .2s;
+  }
+  h1, h2, h3, h4, h5, h6 { color: var(--sp-heading); font-weight: 600; line-height: 1.2; margin: 0; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 24px;
+    background: var(--sp-surface);
+    box-shadow: var(--sp-shadow-lg);
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--sp-heading); }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: var(--sp-radius);
+    background: var(--sp-navy); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+  }
+  .topbar .doc-meta { color: var(--sp-muted); font-size: .8rem; font-weight: 400; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+  section { margin-bottom: 56px; }
+
+  /* Heading scale mirrors the app: h4 1.563 → h5 1.25 → overline */
+  .page-title { font-size: 1.563rem; margin-bottom: 4px; }
+  .page-sub   { color: var(--sp-secondary-txt); margin: 0 0 8px; max-width: 72ch; }
+  h2.section-title { font-size: 1.563rem; margin-bottom: 4px; }
+  .section-sub { color: var(--sp-secondary-txt); margin: 0 0 20px; font-size: .95rem; max-width: 78ch; }
+  h3.card-title { font-size: 1.25rem; }
+  .overline {
+    font-size: .72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--sp-muted); margin: 0 0 10px;
+  }
+
+  /* Real card recipe: borderless, blue-tinted shadow, 4px radius */
+  .card {
+    background: var(--sp-surface);
+    border: 0; border-radius: var(--sp-radius);
+    box-shadow: var(--sp-shadow);
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid var(--sp-border);
+    background: transparent;
+  }
+  .card-body { padding: 20px; }
+
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+  code, .token {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .8em;
+    background: var(--sp-body-bg);
+    border: 1px solid var(--sp-border);
+    border-radius: var(--sp-radius);
+    padding: 1px 5px;
+  }
+
+  table.spec { width: 100%; border-collapse: collapse; font-size: .875rem; }
+  table.spec th, table.spec td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--sp-border); vertical-align: top; }
+  table.spec th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--sp-muted); font-weight: 600; }
+  table.spec tr:last-child td { border-bottom: 0; }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .swatch { border: 1px solid var(--sp-border); border-radius: var(--sp-radius); overflow: hidden; background: var(--sp-surface); }
+  .swatch .chip { height: 56px; }
+  .swatch .meta { padding: 8px 10px; }
+  .swatch .name { font-size: .8rem; font-weight: 600; color: var(--sp-heading); }
+  .swatch .hex  { font-size: .72rem; color: var(--sp-muted); font-family: ui-monospace, Menlo, monospace; }
+
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .principle { border-radius: var(--sp-radius); padding: 14px 16px; background: var(--sp-surface); box-shadow: var(--sp-shadow-sm); }
+  .principle b { display: block; margin-bottom: 2px; color: var(--sp-heading); }
+  .principle span { color: var(--sp-secondary-txt); font-size: .875rem; }
+  .principle .num { color: var(--sp-primary); font-weight: 700; margin-right: 6px; }
+
+  /* ============================================================
+     Components
+     ============================================================ */
+
+  /* Buttons: weight 400, padding .5rem/1.5rem, radius .25rem, no focus ring
+     (focus recolors the border); hover shades bg 15–20% */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    font-family: inherit; font-size: 1rem; font-weight: 400; line-height: 1.5;
+    padding: .5rem 1.5rem; border-radius: var(--sp-radius);
+    border: 1px solid transparent; cursor: pointer;
+    background: var(--sp-surface); color: var(--sp-body-color);
+    transition: background-color .15s, border-color .15s, color .15s;
+  }
+  .btn-sm { padding: .25rem .5rem; font-size: .875rem; }
+  .btn-primary   { background: var(--sp-primary); color: #fff; }
+  .btn-primary:hover { background: #2b66d9; }
+  .btn-danger    { background: var(--sp-danger); color: #fff; }
+  .btn-danger:hover { background: #9d2a1c; }
+  .btn-outline-primary   { border-color: var(--sp-primary);   color: var(--sp-primary); background: transparent; }
+  .btn-outline-secondary { border-color: var(--sp-secondary); color: var(--sp-secondary); background: transparent; }
+  .btn-outline-secondary:hover { background: var(--sp-secondary); color: #fff; }
+  .btn-outline-danger    { border-color: var(--sp-danger);    color: var(--sp-danger); background: transparent; }
+  .btn:disabled { opacity: .65; cursor: not-allowed; }
+
+  /* Badges: .75em bold white, padding .3em/.6em, radius .25rem, CAPITALIZED -
+     rectangular, not pills */
+  .badge {
+    display: inline-flex; align-items: center;
+    font-size: .75em; font-weight: 700; line-height: 1.3;
+    padding: .3em .6em; border-radius: var(--sp-radius); color: #fff;
+    text-transform: capitalize; white-space: nowrap;
+  }
+  .badge-success   { background: var(--sp-success); }
+  .badge-primary   { background: var(--sp-primary); }
+  .badge-warning   { background: var(--sp-warning); }
+  .badge-danger    { background: var(--sp-danger); }
+  .badge-secondary { background: var(--sp-secondary); }
+  .badge-info      { background: var(--sp-info); }
+
+  .alert {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 1rem; border-radius: var(--sp-radius); font-size: .875rem;
+    border: 1px solid transparent;
+  }
+  .alert svg { flex: 0 0 auto; margin-top: 1px; }
+  .alert-danger  { background: var(--sp-danger-subtle);  color: var(--sp-danger-emph); }
+  .alert-warning { background: var(--sp-warning-subtle); color: var(--sp-warning-emph); }
+  .alert-info    { background: var(--sp-info-subtle);    color: var(--sp-info-emph); }
+  .alert-success { background: var(--sp-success-subtle); color: var(--sp-success-emph); }
+
+  /* Inputs: fill = body-bg (not white), border #efefef, radius .25rem,
+     focus swaps border to primary - no glow ring */
+  .input {
+    width: 100%; font-family: inherit; font-size: 1rem; line-height: 1.5;
+    padding: .5rem 1rem; border-radius: var(--sp-radius);
+    border: 1px solid var(--sp-border);
+    background: var(--sp-body-bg); color: var(--sp-body-color);
+  }
+  .input::placeholder { color: var(--sp-secondary-txt); }
+  .input:focus { outline: 0; border-color: var(--sp-primary); }
+  .input.is-invalid { border-color: var(--sp-danger); }
+  .field-label { display: block; font-size: .875rem; font-weight: 500; margin-bottom: .5rem; color: var(--sp-heading); }
+  .field-error { font-size: .75rem; color: var(--sp-danger); margin-top: .25rem; }
+
+  .spinner {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent;
+    display: inline-block; vertical-align: -2px;
+    animation: spin .75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.8s; } }
+
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: var(--sp-radius);
+    border: 0; background: transparent; color: inherit; cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--sp-hover); }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+
+  .list-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px; border-bottom: 1px solid var(--sp-border);
+    background: var(--sp-surface); cursor: pointer;
+  }
+  .list-row:last-child { border-bottom: 0; }
+  .list-row:active, .list-row:hover { background: rgba(var(--sp-primary-rgb), .075); }
+  .list-row .rw-main { flex: 1; min-width: 0; }
+  .list-row .rw-title { font-size: .9rem; font-weight: 500; color: var(--sp-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-row .rw-sub { font-size: .76rem; color: var(--sp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-row .chev { color: var(--sp-muted); flex: 0 0 auto; }
+
+  .empty-box {
+    border: 1px solid var(--sp-border); border-radius: var(--sp-radius);
+    padding: 16px; text-align: center; color: var(--sp-muted); font-size: .82rem;
+  }
+
+  /* Navy chrome specimen (sidebar / mobile nav) */
+  .chrome { background: var(--sp-navy); border-radius: var(--sp-radius); padding: 14px; }
+  .chrome .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--sp-secondary); font-size: 14px; padding: .625rem .938rem;
+    border-radius: var(--sp-radius); cursor: pointer; text-transform: capitalize;
+  }
+  .chrome .nav-item svg { width: 16px; }
+  .chrome .nav-item.active { color: #fff; background: rgba(255,255,255,.08); }
+  .chrome .nav-item:hover:not(.active) { color: #d8dee9; }
+
+  /* ============================================================
+     Phone mockups
+     ============================================================ */
+
+  .screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; align-items: start; }
+  .screen-wrap { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .screen-caption { font-size: .82rem; color: var(--sp-secondary-txt); max-width: 320px; text-align: center; }
+  .screen-caption b { color: var(--sp-heading); }
+
+  .phone {
+    width: 320px; border-radius: 40px;
+    border: 10px solid #0d0f12;
+    background: var(--sp-body-bg);
+    box-shadow: var(--sp-shadow-lg), 0 20px 45px rgba(0,0,0,.18);
+    overflow: hidden; position: relative;
+  }
+  .phone-status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 22px 6px; font-size: .68rem; font-weight: 600;
+    background: var(--sp-surface); color: var(--sp-heading);
+  }
+  .phone-screen { height: 560px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  /* App bar = web top-navbar: surface bg + soft shadow */
+  .appbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--sp-surface);
+    box-shadow: var(--sp-shadow-lg);
+    z-index: 2;
+  }
+  .appbar .ab-title { flex: 1; font-size: 1.05rem; font-weight: 600; color: var(--sp-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .appbar .ab-sub { font-size: .68rem; color: var(--sp-muted); font-weight: 400; }
+
+  .phone-content { flex: 1; overflow: hidden; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Tab bar = the navy sidebar, translated to mobile */
+  .tabbar {
+    display: flex; background: var(--sp-navy); padding: 8px 6px 12px; gap: 4px;
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-family: inherit; font-size: .6rem; color: var(--sp-secondary); font-weight: 500;
+    background: none; border: 0; cursor: pointer; padding: 6px 0 4px;
+    border-radius: var(--sp-radius);
+  }
+  .tab.active { color: #fff; background: rgba(255,255,255,.08); }
+
+  /* Metric cards: the one bordered card pattern (per ui-ux.md) */
+  .metric-row { display: flex; gap: 10px; }
+  .metric {
+    flex: 1; text-align: center; padding: 10px 6px;
+    background: var(--sp-surface); border: 1px solid var(--sp-border);
+    border-radius: var(--sp-radius);
+  }
+  .metric .m-label { font-size: .58rem; text-transform: uppercase; letter-spacing: .05em; color: var(--sp-muted); font-weight: 600; }
+  .metric .m-value { font-size: 1.3rem; font-weight: 700; }
+
+  .m-card {
+    background: var(--sp-surface); border: 0;
+    border-radius: var(--sp-radius); box-shadow: var(--sp-shadow);
+    overflow: hidden;
+  }
+  .m-card-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 11px 14px; border-bottom: 1px solid var(--sp-border);
+  }
+  .m-card-header .h { font-size: .9rem; font-weight: 600; color: var(--sp-heading); }
+  .m-card-body { padding: 12px 14px; }
+
+  .search-box { position: relative; }
+  .search-box svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--sp-muted); }
+  .search-box .input { padding-left: 34px; font-size: .9rem; }
+
+  /* Flash toast - top stack, subtle bg, soft shadow */
+  .flash {
+    position: absolute; left: 12px; right: 12px; top: 54px; z-index: 10;
+    display: flex; align-items: center; gap: 9px;
+    background: var(--sp-success-subtle); color: var(--sp-success-emph);
+    border-radius: var(--sp-radius); padding: 8px 12px;
+    box-shadow: 0 .25rem .75rem rgba(0,0,0,.15);
+    font-size: .82rem; font-weight: 500;
+  }
+  .flash .f-close { margin-left: auto; display: flex; opacity: .7; }
+
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 8;
+    background: var(--sp-surface);
+    border-radius: var(--sp-radius-lg) var(--sp-radius-lg) 0 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,.18);
+    padding: 8px 16px 18px;
+  }
+  .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--sp-border); margin: 4px auto 12px; }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.35); z-index: 7; }
+
+  .seg-title { font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--sp-muted); margin: 2px 0 4px; }
+
+  .mapfake { position: relative; flex: 1; background: var(--sp-map-bg); overflow: hidden; }
+  .map-float { position: absolute; top: 12px; right: 12px; z-index: 4; display: flex; flex-direction: column; gap: 6px; }
+  .map-float .icon-btn { background: var(--sp-surface); box-shadow: var(--sp-shadow-sm); border-radius: var(--sp-radius); }
+  .legend {
+    position: absolute; left: 12px; top: 12px; z-index: 4;
+    background: var(--sp-surface); border-radius: var(--sp-radius);
+    padding: 8px 10px; font-size: .66rem; box-shadow: var(--sp-shadow-sm);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .legend .li { display: flex; align-items: center; gap: 6px; }
+
+  footer { border-top: 1px solid var(--sp-border); padding: 18px 24px 40px; color: var(--sp-muted); font-size: .8rem; text-align: center; }
+
+  .theme-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--sp-border); background: var(--sp-surface);
+    color: var(--sp-body-color); border-radius: var(--sp-radius); padding: 7px 14px;
+    font-family: inherit; font-size: .8rem; font-weight: 500; cursor: pointer;
+  }
+  .theme-toggle:hover { background: var(--sp-hover); }
+
+  .demo-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  .do-dont { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .do-dont ul { margin: 0; padding-left: 0; list-style: none; }
+  .do-dont li { padding: 7px 0 7px 26px; position: relative; font-size: .875rem; border-bottom: 1px dashed var(--sp-border); }
+  .do-dont li:last-child { border-bottom: 0; }
+  .do-dont li::before { position: absolute; left: 2px; top: 7px; font-weight: 700; }
+  .do-list li::before { content: "✓"; color: var(--sp-success); }
+  .dont-list li::before { content: "✕"; color: var(--sp-danger); }
+
+  @media (max-width: 720px) {
+    main { padding: 24px 14px 60px; }
+    .phone { width: 300px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Icon sprite for this document. Production icon set: FontAwesome 6 Free, solid style. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20H4v-4L17 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 2l10 6-10 6L2 8l10-6zM2 13l10 6 10-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 21h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5V21h-6v-6h-6v6H3V10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3L1.8 20.2h20.4L12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.15" fill="currentColor"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.15" fill="currentColor"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></symbol>
+    <symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-org" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M2 6l7-4 6 4 7-4v16l-7 4-6-4-7 4V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 2v16M15 6v16" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">S</span>
+    <span>SafePass Mobile Design Guide</span>
+  </div>
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle light and dark theme">
+    <span id="themeIcon">🌙</span><span id="themeLabel">Dark</span>
+  </button>
+</header>
+
+<main>
+
+  <!-- ============ INTRO ============ -->
+  <section>
+    <h1 class="page-title">The web app's design, ready for mobile</h1>
+    <p class="page-sub">
+      Every value here comes from the shipped SafePass web app - the DM&nbsp;Sans type, the color
+      palette, the borderless shadowed cards, the navy chrome. Build with these tokens and the
+      mobile apps read as the same product. Sample screens are flavored for the
+      <b>admin/management</b> and <b>mapping/site-configuration</b> apps; they're references, not
+      pixel specs. Toggle the theme (top right) - both modes ship today. Questions or gaps: ask
+      the SafePass web team.
+    </p>
+  </section>
+
+  <!-- ============ PRINCIPLES ============ -->
+  <section id="principles">
+    <h2 class="section-title">Principles</h2>
+    <p class="section-sub">When a case isn't covered by a specific rule, fall back to these.</p>
+    <div class="principles">
+      <div class="principle"><b><span class="num">1</span>Feedback is immediate</b><span>Every action shows visible feedback within 100 ms - loading states on buttons, a flash on success, inline errors on failure.</span></div>
+      <div class="principle"><b><span class="num">2</span>Progressive disclosure</b><span>Show only what's needed at each step. Summary → drill-down; sheets and modals for secondary actions.</span></div>
+      <div class="principle"><b><span class="num">3</span>Consistency over novelty</b><span>Two surfaces that do similar things look and behave the same. Reuse the established pattern.</span></div>
+      <div class="principle"><b><span class="num">4</span>Destructive actions confirm</b><span>Delete, revoke, disconnect - always an explicit confirmation naming the specific resource.</span></div>
+      <div class="principle"><b><span class="num">5</span>Errors are actionable</b><span>Say what happened and what to do about it. Surface the API's error detail when available.</span></div>
+      <div class="principle"><b><span class="num">6</span>Concise by default</b><span>Chatty UI is a bug. Status words over sentences. No captions on self-evident controls.</span></div>
+    </div>
+  </section>
+
+  <!-- ============ COLOR ============ -->
+  <section id="color">
+    <h2 class="section-title">Color</h2>
+    <p class="section-sub">
+      The palette as it renders today. Define these as named tokens in your design system and
+      reference the token everywhere - never hardcode hex at call sites; everything ships in
+      light and dark.
+    </p>
+
+    <div class="stack">
+      <div class="card"><div class="card-body">
+        <p class="overline">Semantic</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:var(--sp-primary)"></div><div class="meta"><div class="name">Primary</div><div class="hex">#3378FF · brand, actions, links, active states</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-secondary)"></div><div class="meta"><div class="name">Secondary</div><div class="hex">#8f9fbc · blue-gray, neutral buttons, sidebar links</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-success)"></div><div class="meta"><div class="name">Success</div><div class="hex">#3cb72c · positive status</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-danger)"></div><div class="meta"><div class="name">Danger</div><div class="hex">#C03221 · errors, destructive</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-warning)"></div><div class="meta"><div class="name">Warning</div><div class="hex">#db7e06 · caution, pending</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-info)"></div><div class="meta"><div class="name">Info</div><div class="hex">#08B1BA · informational</div></div></div>
+          <div class="swatch"><div class="chip" style="background:var(--sp-navy)"></div><div class="meta"><div class="name">Brand navy</div><div class="hex">#0C2556 · navigation chrome</div></div></div>
+        </div>
+        <p style="font-size:.8rem;color:var(--sp-muted);margin:12px 0 0">
+          Subtle backgrounds derive mechanically: light = the color tinted 80% toward white; dark = shaded 80% toward black.
+        </p>
+      </div></div>
+
+      <div class="grid grid-2">
+        <div class="card"><div class="card-body">
+          <p class="overline">Scope hierarchy - sites &amp; org structure</p>
+          <div class="swatches" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
+            <div class="swatch"><div class="chip" style="background:var(--sp-scope-org)"></div><div class="meta"><div class="name">Organization</div><div class="hex">#3378FF</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--sp-scope-division)"></div><div class="meta"><div class="name">Division</div><div class="hex">#20c997</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--sp-scope-location)"></div><div class="meta"><div class="name">Location</div><div class="hex">#fd7e14</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--sp-scope-building)"></div><div class="meta"><div class="name">Building</div><div class="hex">#6f42c1</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--sp-scope-floor)"></div><div class="meta"><div class="name">Floor / Station</div><div class="hex">#19b3b3</div></div></div>
+          </div>
+          <p style="font-size:.8rem;color:var(--sp-muted);margin:12px 0 0">
+            Used anywhere scope levels are color-coded: hierarchy trees, map pins, filters.
+            The <b>same level must be the same color in every app</b>. Tinted fills = the color at 10% alpha.
+          </p>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+          <p class="overline">Chart / data-viz palette</p>
+          <div class="demo-row" style="gap:8px">
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-1)" title="chart-1 #3378FF"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-2)" title="chart-2 #2ec4b6"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-3)" title="chart-3 #876cfe"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-4)" title="chart-4 #ff4b4b"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-5)" title="chart-5 #f7b731"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-6)" title="chart-6 #4788ff"></span>
+            <span class="dot" style="width:34px;height:34px;border-radius:var(--sp-radius);background:var(--sp-chart-7)" title="chart-7 #37e6b0"></span>
+          </div>
+          <p style="font-size:.8rem;color:var(--sp-muted);margin:12px 0 0">
+            <code>#3378FF</code> <code>#2ec4b6</code> <code>#876cfe</code> <code>#ff4b4b</code>
+            <code>#f7b731</code> <code>#4788ff</code> <code>#37e6b0</code><br><br>
+            Distinguishable for color-blind users. Assign series in order; don't skip or reshuffle.
+          </p>
+          <p class="overline" style="margin-top:16px">Map features</p>
+          <p style="font-size:.8rem;color:var(--sp-muted);margin:0">
+            Tracking paths <code>#3b82f6</code> · geofence fill/stroke and pin markers use <b>primary</b> <code>#3378FF</code> (fill at ~15% alpha).
+          </p>
+        </div></div>
+      </div>
+
+      <div class="card"><div class="card-body">
+        <p class="overline">Surfaces (theme-aware)</p>
+        <table class="spec">
+          <tr><th>Role</th><th>Light</th><th>Dark</th><th>Usage</th></tr>
+          <tr><td>Body background</td><td><code>#f9f9f9</code></td><td><code>#222222</code></td><td>Screen background - also the <b>input fill</b></td></tr>
+          <tr><td>Surface</td><td><code>#ffffff</code></td><td><code>#181818</code></td><td>Cards, app bars, sheets, modals</td></tr>
+          <tr><td>Body text</td><td><code>#324253</code></td><td><code>#fafafa</code></td><td>Default text (slate, not black)</td></tr>
+          <tr><td>Headings</td><td><code>#213446</code></td><td><code>#e3e7ef</code></td><td>All heading levels, weight 600</td></tr>
+          <tr><td>Muted text</td><td><code>#6c757d</code></td><td><code>rgba(#fafafa,.6)</code></td><td>Labels, metadata, empty states</td></tr>
+          <tr><td>Border / divider</td><td><code>#efefef</code></td><td><code>#3d3838</code></td><td>Card header rules, row dividers, inputs</td></tr>
+        </table>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ TYPOGRAPHY & SHAPE ============ -->
+  <section id="type">
+    <h2 class="section-title">Typography &amp; shape</h2>
+    <p class="section-sub">
+      <b>DM Sans</b> (400 / 500 / 700) everywhere - bundle it in the apps. Headings: weight 600,
+      line-height 1.2, in the heading color. Corners are square-ish: <b>4px</b> on nearly
+      everything, 8px on modals and sheets. Elevation is a barely-there blue-tinted shadow -
+      cards have <b>no border</b>.
+    </p>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-body">
+        <table class="spec">
+          <tr><th>Level</th><th>Spec</th><th>Sample</th></tr>
+          <tr><td>Page title</td><td>1.563rem / 600</td><td><span style="font-size:1.563rem;font-weight:600;color:var(--sp-heading)">Devices</span></td></tr>
+          <tr><td>Section title</td><td>1.25rem / 600</td><td><span style="font-size:1.25rem;font-weight:600;color:var(--sp-heading)">Geofence</span></td></tr>
+          <tr><td>Overline label</td><td>~.75rem / 600 / uppercase / muted</td><td><span class="overline" style="margin:0">Quiet hours</span></td></tr>
+          <tr><td>Body</td><td>1rem / 400</td><td>Default reading text</td></tr>
+          <tr><td>Secondary</td><td>.875rem / muted</td><td><span style="font-size:.875rem;color:var(--sp-muted)">Last seen 4 min ago</span></td></tr>
+          <tr><td>Metric value</td><td>~1.75rem / 700 / semantic</td><td><span style="font-size:1.75rem;font-weight:700;color:var(--sp-primary)">128</span></td></tr>
+        </table>
+        <p style="font-size:.8rem;color:var(--sp-muted);margin:10px 0 0">
+          Larger display sizes exist but screens start at the page title - one per screen.
+        </p>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <table class="spec">
+          <tr><th>Token</th><th>Value</th><th>Used on</th></tr>
+          <tr><td>Radius</td><td><code>4px</code> (.25rem)</td><td>Cards, buttons, badges, inputs, nav pills</td></tr>
+          <tr><td>Radius lg</td><td><code>8px</code> (.5rem)</td><td>Modals, bottom sheets</td></tr>
+          <tr><td>Shadow (cards)</td><td><code>0 8px 16px rgba(0,60,179,.05)</code></td><td>Every card - instead of a border</td></tr>
+          <tr><td>Shadow lg</td><td><code>0 10px 30px rgba(0,60,179,.05)</code></td><td>App bar / top navbar</td></tr>
+          <tr><td>Spacing scale</td><td>4 / 8 / 16 / 24 / 32&nbsp;px</td><td>All margins and padding; screen gutter 32px</td></tr>
+          <tr><td>Base font</td><td>16px, line-height 1.5</td><td>Body</td></tr>
+        </table>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ COMPONENTS ============ -->
+  <section id="components">
+    <h2 class="section-title">Components</h2>
+    <p class="section-sub">Native equivalents of the web components, with exact metrics. Match the semantics and color mapping, not the widget.</p>
+
+    <div class="stack">
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Buttons</h3></div>
+          <div class="card-body stack">
+            <div class="demo-row">
+              <button class="btn btn-primary">Save</button>
+              <button class="btn btn-outline-secondary">Cancel</button>
+              <button class="btn btn-danger">Delete</button>
+            </div>
+            <div class="demo-row">
+              <button class="btn btn-primary" disabled><span class="spinner"></span>Saving…</button>
+              <button class="btn btn-outline-primary btn-sm">Import</button>
+              <button class="btn btn-outline-danger btn-sm"><svg width="13" height="13"><use href="#i-trash"/></svg>Remove</button>
+            </div>
+            <table class="spec">
+              <tr><th>Spec</th><th>Value</th></tr>
+              <tr><td>Padding / radius / weight</td><td>8×24px · 4px · <b>400</b> (not bold)</td></tr>
+              <tr><td>Primary (Save, Create)</td><td>Solid primary; hover shades ~15%</td></tr>
+              <tr><td>Secondary (Cancel)</td><td>Outline secondary - <b>Cancel always first</b></td></tr>
+              <tr><td>Destructive</td><td>Solid or outline danger</td></tr>
+              <tr><td>During submit</td><td>Disable <b>all</b> buttons in the group; spinner + "Saving…"</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Status badges</h3></div>
+          <div class="card-body stack">
+            <div class="demo-row">
+              <span class="badge badge-success">active</span>
+              <span class="badge badge-success">checked in</span>
+              <span class="badge badge-primary">completed</span>
+              <span class="badge badge-warning">pending</span>
+              <span class="badge badge-danger">failed</span>
+              <span class="badge badge-secondary">unknown</span>
+              <span class="badge badge-info">custom</span>
+            </div>
+            <table class="spec">
+              <tr><th>Status family</th><th>Color</th></tr>
+              <tr><td>Active, Checked In, Confirmed</td><td>Success</td></tr>
+              <tr><td>Completed, Checked Out</td><td>Primary</td></tr>
+              <tr><td>Pending, Scheduled</td><td>Warning</td></tr>
+              <tr><td>Cancelled, Failed, Inactive</td><td>Danger</td></tr>
+              <tr><td>Unknown / default</td><td>Secondary</td></tr>
+              <tr><td>Custom / special</td><td>Info</td></tr>
+            </table>
+            <p style="font-size:.8rem;color:var(--sp-muted);margin:0">
+              Rectangular (4px), <b>not pills</b>. White bold text, auto-capitalized. Map status → color in
+              <b>one shared helper</b>, and <b>display backend state as-is</b> - never transform it client-side.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Feedback hierarchy</h3></div>
+          <div class="card-body stack">
+            <div class="alert alert-success"><svg width="15" height="15"><use href="#i-check"/></svg>Site created.</div>
+            <div class="alert alert-danger"><svg width="15" height="15"><use href="#i-warn"/></svg>Failed to save: name already exists.</div>
+            <div class="alert alert-warning"><svg width="15" height="15"><use href="#i-warn"/></svg>This action cannot be undone.</div>
+            <div class="alert alert-info"><svg width="15" height="15"><use href="#i-info"/></svg>Select an organization to continue.</div>
+            <table class="spec">
+              <tr><th>Situation</th><th>Mechanism</th></tr>
+              <tr><td>Action succeeded / failed</td><td>Flash toast, top of screen (auto-dismiss: success 6s · info 8s · warning 10s · error 12s)</td></tr>
+              <tr><td>Field validation</td><td>Inline error under the field - <b>never a toast</b></td></tr>
+              <tr><td>Screen-level error / info</td><td>Inline alert banner (subtle bg, emphasis text)</td></tr>
+              <tr><td>Destructive confirm</td><td>Dialog / action sheet, Cancel + danger confirm</td></tr>
+              <tr><td>Success confirmation</td><td>Toast only - <b>never a modal</b></td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Forms, loading &amp; empty states</h3></div>
+          <div class="card-body stack">
+            <div>
+              <label class="field-label" for="demo-email">Email</label>
+              <input id="demo-email" class="input is-invalid" value="ops@safepass" aria-describedby="demo-email-err">
+              <div class="field-error" id="demo-email-err">Enter a valid email address.</div>
+            </div>
+            <div>
+              <label class="field-label" for="demo-name">Site name</label>
+              <input id="demo-name" class="input" placeholder="Riverside Campus">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;color:var(--sp-muted);font-size:.875rem">
+              <span class="spinner"></span> Loading sites…
+            </div>
+            <div class="empty-box">No devices found for this site.</div>
+            <p style="font-size:.8rem;color:var(--sp-muted);margin:0">
+              Inputs fill with the <b>body background</b> (off-white on white cards) - focus recolors the border
+              to primary, no glow ring. Descriptive loading text ("Loading sites…"), specific empty states,
+              never "no data" while loading. No helper text under self-evident inputs.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Section card</h3>
+            <span style="display:flex;align-items:center;gap:6px;color:var(--sp-muted);font-size:.8rem"><span class="spinner"></span>Saving…</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.875rem;margin:0 0 10px">
+              The standard content container: borderless, soft shadow, 4px corners, 20px padding,
+              header divided by a 1px rule. Title left, optional right-aligned <b>action slot</b> -
+              a save indicator, filter, or button, as in this header. Settings-style screens stack
+              these full-width under short section labels; one save model per screen.
+            </p>
+            <p class="overline" style="margin-bottom:6px">Quiet hours</p>
+            <p style="font-size:.875rem;color:var(--sp-muted);margin:0">Overline labels group fields <em>within</em> a card - the third heading level.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Navigation chrome</h3></div>
+          <div class="card-body stack">
+            <div class="chrome" style="max-width:260px">
+              <div class="nav-item active"><svg width="16" height="16"><use href="#i-home"/></svg>Dashboard</div>
+              <div class="nav-item"><svg width="16" height="16"><use href="#i-org"/></svg>Organization</div>
+              <div class="nav-item"><svg width="16" height="16"><use href="#i-monitor"/></svg>Monitor</div>
+              <div class="nav-item"><svg width="16" height="16"><use href="#i-gear"/></svg>Settings</div>
+            </div>
+            <p style="font-size:.8rem;color:var(--sp-muted);margin:0">
+              The brand chrome: deep navy <code>#0C2556</code>, links in blue-gray <code>#8f9fbc</code>,
+              active item = white on <code>rgba(255,255,255,.08)</code>, 4px radius. Carry it into
+              mobile navigation (tab bar or drawer). App bars are a plain surface with the large soft shadow.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SAMPLE SCREENS ============ -->
+  <section id="screens">
+    <h2 class="section-title">Sample screens</h2>
+    <p class="section-sub">
+      Four screens composing the tokens - two for admin/management, two for mapping/site-configuration.
+      Navigation is shown as a navy tab bar; a navy drawer is equally valid.
+    </p>
+
+    <div class="screens">
+
+      <!-- SCREEN 1: Admin list -->
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="phone-status"><span>9:41</span><span>●●●●</span></div>
+          <div class="phone-screen">
+            <div class="appbar">
+              <div class="ab-title">Sites</div>
+              <button class="icon-btn" aria-label="Notifications"><svg width="18" height="18"><use href="#i-bell"/></svg></button>
+              <button class="btn btn-primary btn-sm"><svg width="12" height="12"><use href="#i-plus"/></svg>Add</button>
+            </div>
+            <div class="phone-content">
+              <div class="metric-row">
+                <div class="metric"><div class="m-label">Sites</div><div class="m-value" style="color:var(--sp-primary)">24</div></div>
+                <div class="metric"><div class="m-label">Active</div><div class="m-value" style="color:var(--sp-success)">21</div></div>
+                <div class="metric"><div class="m-label">Pending</div><div class="m-value" style="color:var(--sp-warning)">3</div></div>
+              </div>
+              <div class="search-box">
+                <svg width="15" height="15"><use href="#i-search"/></svg>
+                <input class="input" placeholder="Search sites" aria-label="Search sites">
+              </div>
+              <div class="m-card" style="flex:1;overflow:hidden">
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-location)"></span>
+                  <div class="rw-main"><div class="rw-title">Riverside Campus</div><div class="rw-sub">4 buildings · 96 devices</div></div>
+                  <span class="badge badge-success">active</span>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-location)"></span>
+                  <div class="rw-main"><div class="rw-title">Harbor Point</div><div class="rw-sub">2 buildings · 41 devices</div></div>
+                  <span class="badge badge-success">active</span>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-location)"></span>
+                  <div class="rw-main"><div class="rw-title">Northgate Annex</div><div class="rw-sub">1 building · 12 devices</div></div>
+                  <span class="badge badge-warning">pending</span>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-location)"></span>
+                  <div class="rw-main"><div class="rw-title">Old Mill Depot</div><div class="rw-sub">Decommissioned May 2026</div></div>
+                  <span class="badge badge-danger">inactive</span>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="tabbar">
+              <button class="tab active"><svg width="18" height="18"><use href="#i-home"/></svg>Home</button>
+              <button class="tab"><svg width="18" height="18"><use href="#i-org"/></svg>Sites</button>
+              <button class="tab"><svg width="18" height="18"><use href="#i-bell"/></svg>Alerts</button>
+              <button class="tab"><svg width="18" height="18"><use href="#i-gear"/></svg>Settings</button>
+            </div>
+          </div>
+        </div>
+        <p class="screen-caption"><b>Admin - list view.</b> Primary "+ Add" in the header (web pattern), metric cards with uppercase labels and semantic values, search with body-bg fill, rows with scope dot + one-line meta + status badge + chevron. Row tap navigates to detail.</p>
+      </div>
+
+      <!-- SCREEN 2: Site detail / configuration -->
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="phone-status"><span>9:41</span><span>●●●●</span></div>
+          <div class="phone-screen">
+            <div class="appbar">
+              <button class="icon-btn" aria-label="Back"><svg width="18" height="18"><use href="#i-back"/></svg></button>
+              <div class="ab-title">Riverside Campus<div class="ab-sub">Sites / Riverside Campus</div></div>
+              <button class="icon-btn" aria-label="Edit"><svg width="16" height="16"><use href="#i-pen"/></svg></button>
+              <button class="icon-btn" aria-label="More actions"><svg width="18" height="18"><use href="#i-dots"/></svg></button>
+            </div>
+            <div class="phone-content" style="overflow:hidden">
+              <div class="m-card">
+                <div class="m-card-header"><span class="h">Details</span><span class="badge badge-success">active</span></div>
+                <div class="m-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:.8rem">
+                  <div><div class="seg-title">Timezone</div>America/Chicago</div>
+                  <div><div class="seg-title">Devices</div>96 <span style="color:var(--sp-success)">· 94 online</span></div>
+                  <div><div class="seg-title">Address</div>2200 River Rd</div>
+                  <div><div class="seg-title">Geofence</div>Set · 1.2 km²</div>
+                </div>
+              </div>
+              <div class="m-card" style="flex:1;overflow:hidden">
+                <div class="m-card-header"><span class="h">Structure</span><button class="btn btn-outline-primary btn-sm"><svg width="12" height="12"><use href="#i-plus"/></svg>Add</button></div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-building)"></span>
+                  <div class="rw-main"><div class="rw-title">Building A - Operations</div><div class="rw-sub">4 floors · 38 devices</div></div>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-building)"></span>
+                  <div class="rw-main"><div class="rw-title">Building B - Warehouse</div><div class="rw-sub">2 floors · 51 devices</div></div>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+                <div class="list-row">
+                  <span class="dot" style="background:var(--sp-scope-floor)"></span>
+                  <div class="rw-main"><div class="rw-title">Gatehouse Station</div><div class="rw-sub">Kiosk · 7 devices</div></div>
+                  <svg class="chev" width="15" height="15"><use href="#i-chev-r"/></svg>
+                </div>
+              </div>
+              <button class="btn btn-outline-danger" style="width:100%"><svg width="14" height="14"><use href="#i-trash"/></svg>Delete Site</button>
+            </div>
+          </div>
+        </div>
+        <p class="screen-caption"><b>Admin - detail &amp; configure.</b> Read-only fields as plain text under overline labels (never disabled inputs). Related data in its own section card. Scope dots color hierarchy levels. Destructive action stands alone in outline-danger and always confirms.</p>
+      </div>
+
+      <!-- SCREEN 3: Map -->
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="phone-status"><span>9:41</span><span>●●●●</span></div>
+          <div class="phone-screen">
+            <div class="appbar">
+              <button class="icon-btn" aria-label="Back"><svg width="18" height="18"><use href="#i-back"/></svg></button>
+              <div class="ab-title">Site Map</div>
+              <button class="icon-btn" aria-label="Search map"><svg width="18" height="18"><use href="#i-search"/></svg></button>
+            </div>
+            <div class="mapfake">
+              <svg viewBox="0 0 300 470" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-label="Illustrative site map">
+                <rect width="300" height="470" fill="var(--sp-map-bg)"/>
+                <path d="M0 90 C 80 80 180 110 300 95" stroke="var(--sp-map-road)" stroke-width="10" fill="none"/>
+                <path d="M0 230 C 100 220 220 250 300 235" stroke="var(--sp-map-road)" stroke-width="14" fill="none"/>
+                <path d="M70 0 C 75 150 60 320 80 470" stroke="var(--sp-map-road)" stroke-width="9" fill="none"/>
+                <path d="M210 0 C 205 160 220 330 205 470" stroke="var(--sp-map-road)" stroke-width="12" fill="none"/>
+                <path d="M0 370 C 90 355 210 385 300 365" stroke="var(--sp-map-road)" stroke-width="8" fill="none"/>
+                <ellipse cx="255" cy="55" rx="60" ry="38" fill="var(--sp-map-park)"/>
+                <ellipse cx="40" cy="430" rx="55" ry="40" fill="var(--sp-map-park)"/>
+                <path d="M95 130 L 195 118 L 218 205 L 175 290 L 100 275 Z"
+                      fill="rgba(51,120,255,.15)" stroke="var(--sp-primary)" stroke-width="2" stroke-dasharray="6 4" stroke-linejoin="round"/>
+                <path d="M115 255 C 130 230 150 235 158 210 S 178 170 185 150"
+                      stroke="var(--sp-map-track)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                <circle cx="115" cy="255" r="4" fill="var(--sp-map-track)"/>
+                <g><circle cx="145" cy="170" r="9" fill="var(--sp-scope-building)"/><circle cx="145" cy="170" r="3.4" fill="#fff"/></g>
+                <g><circle cx="185" cy="148" r="9" fill="var(--sp-scope-building)"/><circle cx="185" cy="148" r="3.4" fill="#fff"/></g>
+                <g><circle cx="128" cy="222" r="9" fill="var(--sp-scope-floor)"/><circle cx="128" cy="222" r="3.4" fill="#fff"/></g>
+                <g>
+                  <circle cx="158" cy="196" r="12" fill="var(--sp-scope-location)" stroke="#fff" stroke-width="2.5"/>
+                  <circle cx="158" cy="196" r="4" fill="#fff"/>
+                </g>
+              </svg>
+              <div class="legend" role="img" aria-label="Map legend: scope colors">
+                <div class="li"><span class="dot" style="background:var(--sp-scope-location)"></span>Location</div>
+                <div class="li"><span class="dot" style="background:var(--sp-scope-building)"></span>Building</div>
+                <div class="li"><span class="dot" style="background:var(--sp-scope-floor)"></span>Station</div>
+                <div class="li"><span style="width:14px;height:0;border-top:2px dashed var(--sp-primary)"></span>Geofence</div>
+              </div>
+              <div class="map-float">
+                <button class="icon-btn" aria-label="Layers"><svg width="17" height="17"><use href="#i-layers"/></svg></button>
+                <button class="icon-btn" aria-label="My location"><svg width="17" height="17"><use href="#i-crosshair"/></svg></button>
+              </div>
+              <div class="sheet">
+                <div class="grab"></div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="dot" style="width:14px;height:14px;background:var(--sp-scope-location)"></span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;font-size:.95rem;color:var(--sp-heading)">Riverside Campus</div>
+                    <div style="font-size:.74rem;color:var(--sp-muted)">Location · geofence set · 96 devices</div>
+                  </div>
+                  <span class="badge badge-success">active</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn btn-primary btn-sm" style="flex:1">Open Site</button>
+                  <button class="btn btn-outline-primary btn-sm" style="flex:1"><svg width="12" height="12"><use href="#i-pen"/></svg>Edit Geofence</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="screen-caption"><b>Mapping - site map.</b> Pins colored by scope level, geofence in primary at ~15% fill with dashed stroke, tracking path in <code>#3b82f6</code>. Selection opens a bottom sheet (progressive disclosure). Map colors are named constants matching the tokens.</p>
+      </div>
+
+      <!-- SCREEN 4: Feedback patterns -->
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="phone-status"><span>9:41</span><span>●●●●</span></div>
+          <div class="phone-screen">
+            <div class="flash" role="status">
+              <svg width="15" height="15"><use href="#i-check"/></svg>
+              Geofence saved.
+              <span class="f-close"><svg width="13" height="13"><use href="#i-x"/></svg></span>
+            </div>
+            <div class="appbar">
+              <button class="icon-btn" aria-label="Back"><svg width="18" height="18"><use href="#i-back"/></svg></button>
+              <div class="ab-title">Edit Station</div>
+            </div>
+            <div class="phone-content">
+              <div class="m-card"><div class="m-card-body stack" style="gap:12px">
+                <div>
+                  <label class="field-label" for="s-name">Name</label>
+                  <input id="s-name" class="input" value="Gatehouse Station">
+                </div>
+                <div>
+                  <label class="field-label" for="s-code">Station code</label>
+                  <input id="s-code" class="input is-invalid" value="GH 01" aria-describedby="s-code-err">
+                  <div class="field-error" id="s-code-err">Codes are letters, digits, and dashes only.</div>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end">
+                  <button class="btn btn-outline-secondary btn-sm">Cancel</button>
+                  <button class="btn btn-primary btn-sm" disabled><span class="spinner"></span>Saving…</button>
+                </div>
+              </div></div>
+            </div>
+            <div class="scrim"></div>
+            <div class="sheet" style="z-index:9">
+              <div class="grab"></div>
+              <div style="font-weight:600;font-size:1rem;color:var(--sp-heading);margin-bottom:6px">Delete Station</div>
+              <div style="font-size:.85rem;margin-bottom:10px">Are you sure you want to delete <b>Gatehouse Station</b>?</div>
+              <div class="alert alert-warning" style="margin-bottom:12px"><svg width="14" height="14"><use href="#i-warn"/></svg>This action cannot be undone.</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-outline-secondary" style="flex:1">Cancel</button>
+                <button class="btn btn-danger" style="flex:1">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="screen-caption"><b>Feedback patterns.</b> Flash toast at top (success auto-dismiss 6s, subtle bg + emphasis text). Validation stays inline. Submit disables the whole footer with "Saving…". Destructive confirm names the resource, warns once, Cancel first, danger confirm.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ RULES DIGEST ============ -->
+  <section id="rules">
+    <h2 class="section-title">Rules digest for mobile</h2>
+    <p class="section-sub">The web standards translated to app terms. Accessibility baseline is WCAG 2.1 AA: 4.5:1 text contrast, visible focus, labels on every input, never color alone for meaning, respect reduced-motion.</p>
+    <div class="do-dont">
+      <div class="card"><div class="card-body">
+        <p class="overline" style="color:var(--sp-success)">Do</p>
+        <ul class="do-list">
+          <li>Bundle <b>DM Sans</b>; headings 600 in the heading color, body in slate.</li>
+          <li>Use the palette exactly - primary <code>#3378FF</code>, danger <code>#C03221</code>, the status map, the scope colors. Same level = same color in every app.</li>
+          <li>Keep the surface recipe: borderless cards, soft blue-tinted shadow, 4px corners, off-white body behind white cards.</li>
+          <li>Carry the navy <code>#0C2556</code> chrome into navigation.</li>
+          <li>Toast for action results; inline errors for validation; banner alerts for screen-level errors.</li>
+          <li>Descriptive loading states and specific empty states, always.</li>
+          <li>Confirm every destructive action, naming the resource.</li>
+          <li>Display backend state as-is; support light and dark from day one.</li>
+        </ul>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <p class="overline" style="color:var(--sp-danger)">Do not</p>
+        <ul class="dont-list">
+          <li>Hardcode hex values at call sites - define tokens once and reference them.</li>
+          <li>Make badges pills or buttons bold - badges are 4px rectangles, buttons weight 400.</li>
+          <li>Put borders on cards or heavy shadows anywhere - elevation is whisper-quiet.</li>
+          <li>Use a modal for success confirmation - that's a toast. Or toast a validation error - that's inline.</li>
+          <li>Show a blank screen while loading, or "no data" before data arrives.</li>
+          <li>Map status → color ad hoc per screen - one shared helper.</li>
+          <li>Transform, rename, or re-derive backend states client-side.</li>
+          <li>Caption self-evident controls or restate a card's title in its body.</li>
+          <li>Invent a new pattern when an established one exists.</li>
+        </ul>
+      </div></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  SafePass Mobile Design Guide - July 2026
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggle');
+    var icon = document.getElementById('themeIcon');
+    var label = document.getElementById('themeLabel');
+    function apply(theme) {
+      root.setAttribute('data-theme', theme);
+      var dark = theme === 'dark';
+      icon.textContent = dark ? '☀️' : '🌙';
+      label.textContent = dark ? 'Light' : 'Dark';
+    }
+    // #light / #dark in the URL pins the theme; otherwise follow the system.
+    if (location.hash === '#dark') apply('dark');
+    else if (location.hash !== '#light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) apply('dark');
+    btn.addEventListener('click', function () {
+      apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+
+</body>
+</html>
