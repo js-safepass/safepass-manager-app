@@ -29,18 +29,20 @@ CapacitorHttp disabled (D2), auth only via `auth.safepass.com` bridge (D4), Host
 + PKCE (D5), tokens in-memory on web (D6), one error taxonomy (D13), pure-logic
 extraction with tests beside source (D11), copy-per-app seeding (D12).
 
-## Decisions needed from the human (blockers marked ⛔)
+## Decisions (confirmed with owner 2026-07-10)
 
-| # | Decision | Default / recommendation |
+| # | Decision | Resolution |
 |---|---|---|
-| 1 | ⛔ Cognito app client ID for this app (dedicated client, pool `us-gov-west-1_jpRl7DoR5`; checklist in `HANDOFF-AUTH-TEMPLATE.md`) | Blocks real auth; mock/dev-bypass unblocks everything else |
-| 2 | ⛔ Hostname | Suggest `manage.safepass.com`; deep-link scheme `safepassmanage://` |
-| 3 | App slug | `manager` (matches repo name; STANDARDS suggests `safepass-<name>-web` repo naming — repo is already `safepass-manager-app`, accepted deviation) |
-| 4 | Layer 2 (device sessions / DPoP / secure persistence)? | **No** — attended app, personal login (AUTH-TEMPLATE worksheet default). Confirm, then delete Layer-2 seeded files |
-| 5 | Self-update polling (D9)? | Front desk may leave a tablet running all day — lean **yes, keep `appUpdate.js`**. Confirm |
-| 6 | ⛔ Cloudflare project (human creates in dashboard; note naming caveat in kiosk `docs/deployment/cloudflare-pages.md`) | Blocks hosted deploys only |
-| 7 | Router | **Add React Router** — deviation from kiosk state-router, justified: brief requires tenant-safe direct-link routes to visitors/visits, and 10–15 screens |
-| 8 | Provisional API shapes (metrics group, auth scope/OTP group, scope tree) — confirm frozen with backend | Build those screens last within their phase; put a dated confirmation in code comments when frozen |
+| 1 | Cognito app client ID | Provided later; env-var based (`VITE_COGNITO_CLIENT_ID`), not blocking — dev-bypass + mock until then |
+| 2 | Hostname / scheme | `manage.safepass.com`; deep-link `safepassmanager://`; `appId` `com.safepass.manager` |
+| 3 | App slug | `manager` (repo already `safepass-manager-app`; accepted deviation from the `safepass-<name>-web` naming shape) |
+| 4 | Credential persistence (kiosk Layer 2's keystore half) | **No** — attended app, personal login, tokens in-memory on web. Persistence files (`secureStorage`, `kioskCredentials`, restore/refresh failure policies) removed |
+| 5 | DPoP sender-constrained sessions | **Planned, deferred** — owner leans yes given this app's elevated admin power; requires backend support (manager-surface session exchange + proof validation), which the brief schedules as the later hardening phase. `dpop.js` stays seeded; `managerApi` keeps a proof-attachment hook so wiring it is a one-seam change |
+| 6 | Self-update polling (D9) | **Yes** — attended app, but staff tablets/PCs sit open all day. Keep `appUpdate.js`, suppress reload mid-interaction, 8s abort on the version probe. (Terminology note: these are staff members' personal/management tablets or PCs — *not* kiosks; kiosks are a distinct product) |
+| 7 | Deploy | Auto-deploy from GitHub with CI build gates (`ci_gate`), per SafePass CI structure |
+| 8 | Router | Add React Router when routed screens land (Phase 1/2) — justified by tenant-safe direct-link routes and 10–15 screens |
+| 9 | OTP / auth account management | **Out of scope, intentionally** — no OTP exists currently; no password update or other auth account features in this app. The centralized client seam leaves room for a re-verify step later; nothing is built for it |
+| 10 | Provisional API shapes (metrics group, scope tree) — confirm frozen with backend | Build those screens last within their phase; add a dated confirmation in code comments when frozen |
 
 ## Phase 0 — Skeleton + identity pass (foundation)
 
@@ -55,8 +57,8 @@ Per `HANDOFF-BOOTSTRAP.md` steps 1–3:
    AUTH-TEMPLATE; new `capacitor.config.ts` identity (`com.safepass.manager`,
    `server.url` = hostname) keeping the D1/D2 comments; `CLAUDE-TEMPLATE.md` →
    `CLAUDE.md` with placeholders filled.
-3. Delete Layer-2 files once decision #4 confirms: `dpop.js`, `secureStorage.js`,
-   `kioskCredentials.js`, `restoreFailurePolicy.*`, `refreshFailurePolicy.*`.
+3. Delete persistence files (decision #4): `secureStorage.js`, `kioskCredentials.js`,
+   `restoreFailurePolicy.*`, `refreshFailurePolicy.*`. Keep `dpop.js` (decision #5).
 4. Provider tree in `main.jsx` (Auth → Network → app), `App.jsx`, router, Login.
 5. Mock API mode (`VITE_MANAGER_MOCK=true`) so the app is fully drivable with no
    backend. `./scripts/test.sh` green. Branch protection on `ci_gate`.
@@ -75,7 +77,6 @@ retrofit, so it must be the only place requests are made:
 - Keyset pagination helper (opaque cursors), `expand`/`include` support
 - Signed-URL discipline: store media IDs, never cache URLs across renders/sessions
 - Tenant-safe 404 handling; bounded polling that stops on 401/403
-- Generic "verify again" OTP step (`/auth/otp/*`) as a reusable prompt
 
 Auth: Layer 1 per AUTH-TEMPLATE (dev callback first, hosted later). Bootstrap
 `/v1/whoami` + `/v1/auth/scopes`; scope selector (org → division → location →
