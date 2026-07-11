@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:staging": "CLOUDFLARE_ENV=staging vite build --mode staging",
     "cap:build": "CAP_BUILD=true vite build",
+    "cap:build:staging": "CAP_BUILD=true vite build --mode staging",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
