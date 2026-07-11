@@ -73,6 +73,7 @@ docs/               design docs & plans — check the Status header; see docs/RE
 - Native OAuth: in-app browser + `safepassmanager://localhost/auth/callback` deep link.
 - API base: `https://api.safepass.com`; this client is scoped to the `x-apps: visitor` + `shared` operations in `docs/contractor-handoff/3-api-spec.yaml`.
 - Env surface: all runtime config is `VITE_*` via `.env*` files (see `.env.example`); never a secret in a `VITE_` var. `VITE_MODE=dev` = auth bypass; `VITE_MANAGER_MOCK=true` = mock API (app must stay fully drivable with no backend).
+- Dev server is pinned to port **5273** (`strictPort` — OAuth callbacks are registered for `localhost:5273`; other local projects hold 5173).
 
 ## Project context
 

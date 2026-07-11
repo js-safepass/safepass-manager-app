@@ -7,8 +7,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 beforeEach(() => {
   vi.stubEnv('VITE_COGNITO_DOMAIN', 'https://auth.safepass.com');
   vi.stubEnv('VITE_COGNITO_CLIENT_ID', '5grgviekbiv44ab9llnsdqnp55');
-  vi.stubEnv('VITE_COGNITO_REDIRECT_URI', 'http://localhost:5173/auth/callback');
-  vi.stubEnv('VITE_COGNITO_LOGOUT_URI', 'http://localhost:5173/auth/logout');
+  vi.stubEnv('VITE_COGNITO_REDIRECT_URI', 'http://localhost:5273/auth/callback');
+  vi.stubEnv('VITE_COGNITO_LOGOUT_URI', 'http://localhost:5273/auth/logout');
 });
 
 afterEach(() => {
@@ -23,7 +23,7 @@ test('buildAuthorizeUrl targets the bridge with PKCE and this app client', async
   expect(url.searchParams.get('client_id')).toBe('5grgviekbiv44ab9llnsdqnp55');
   expect(url.searchParams.get('response_type')).toBe('code');
   expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-  expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:5173/auth/callback');
+  expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:5273/auth/callback');
 });
 
 test('buildLogoutUrl targets the bridge logout endpoint', async () => {

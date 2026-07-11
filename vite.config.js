@@ -53,6 +53,15 @@ export default defineConfig(({ mode }) => ({
     __APP_BUILD_ID__: JSON.stringify(buildId),
   },
 
+  // Dedicated dev port for this app (sentinel-ui and other local work sit on
+  // Vite's 5173 default). strictPort: the Cognito app client registers the
+  // exact localhost callback URL, so silently hopping to :5274 would break
+  // OAuth — better to fail loudly.
+  server: {
+    port: 5273,
+    strictPort: true,
+  },
+
   css: {
     preprocessorOptions: {
       scss: {
