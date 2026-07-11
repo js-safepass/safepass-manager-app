@@ -1,51 +1,59 @@
 import { test, expect } from 'vitest';
-import { KioskApiError } from './kioskApi.js';
+import { ManagerApiError } from './managerApi.js';
 import {
-  isPermanentKioskError,
+  isPermanentApiError,
   retryAfterMsFromError,
   runWithBackoff,
 } from './retry.js';
 
-test('isPermanentKioskError classifies terminal vs transient refresh errors', () => {
+test('isPermanentApiError classifies terminal vs transient errors', () => {
+  // Authoritative auth failures are permanent — polling loops must stop.
   expect(
-    isPermanentKioskError(new KioskApiError('revoked', { status: 401, code: 'KIOSK_SESSION_REVOKED' })),
+    isPermanentApiError(new ManagerApiError('unauthorized', { status: 401, code: 'UNAUTHORIZED' })),
   ).toBe(true);
   expect(
-    isPermanentKioskError(new KioskApiError('refresh failed', { status: 400, code: 'KIOSK_SESSION_REFRESH_FAILED' })),
-  ).toBe(false);
-  expect(
-    isPermanentKioskError(new KioskApiError('too soon', { status: 429, code: 'KIOSK_REFRESH_TOO_SOON' })),
-  ).toBe(false);
-  expect(
-    isPermanentKioskError(new KioskApiError('bad request', { status: 400, code: 'SOMETHING_ELSE' })),
+    isPermanentApiError(new ManagerApiError('gone', { status: 404, code: 'NOT_FOUND' })),
   ).toBe(true);
+  // Rate limiting and 5xx are transient.
+  expect(
+    isPermanentApiError(new ManagerApiError('queue full', { status: 429, code: 'CHECKIN_QUEUE_FULL' })),
+  ).toBe(false);
+  expect(
+    isPermanentApiError(new ManagerApiError('server error', { status: 503, code: 'CHECKIN_UNAVAILABLE' })),
+  ).toBe(false);
+  // Other 4xx are the caller's bug or a business gate — never retried blind.
+  expect(
+    isPermanentApiError(new ManagerApiError('bad request', { status: 400, code: 'INVALID_FILTER' })),
+  ).toBe(true);
+  // Non-ManagerApiError (network blip, TypeError) stays transient.
+  expect(isPermanentApiError(new TypeError('failed to fetch'))).toBe(false);
 });
 
 test('retryAfterMsFromError prefers body field and falls back to header', () => {
   expect(
-    retryAfterMsFromError(new KioskApiError('too soon', {
+    retryAfterMsFromError(new ManagerApiError('too soon', {
       details: { retry_after_seconds: 12 },
       retryAfter: 5,
     })),
   ).toBe(12_000);
   expect(
-    retryAfterMsFromError(new KioskApiError('too soon', {
+    retryAfterMsFromError(new ManagerApiError('too soon', {
       details: { error: { retry_after_seconds: 7 } },
     })),
   ).toBe(7_000);
   expect(
-    retryAfterMsFromError(new KioskApiError('too soon', { retryAfter: 3 })),
+    retryAfterMsFromError(new ManagerApiError('too soon', { retryAfter: 3 })),
   ).toBe(3_000);
 });
 
-test('runWithBackoff retries transient refresh-failed (400) and succeeds', async () => {
+test('runWithBackoff retries transient errors and succeeds', async () => {
   let attempts = 0;
   const result = await runWithBackoff(() => {
     attempts += 1;
     if (attempts === 1) {
-      throw new KioskApiError('refresh failed', {
-        status: 400,
-        code: 'KIOSK_SESSION_REFRESH_FAILED',
+      throw new ManagerApiError('unavailable', {
+        status: 503,
+        code: 'CHECKIN_UNAVAILABLE',
       });
     }
     return 'ok';
@@ -60,11 +68,11 @@ test('runWithBackoff does not retry terminal 401 errors', async () => {
   await expect(
     runWithBackoff(() => {
       attempts += 1;
-      throw new KioskApiError('expired', {
+      throw new ManagerApiError('expired', {
         status: 401,
-        code: 'KIOSK_SESSION_EXPIRED',
+        code: 'UNAUTHORIZED',
       });
     }, { schedule: [0, 0] }),
-  ).rejects.toMatchObject({ code: 'KIOSK_SESSION_EXPIRED' });
+  ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   expect(attempts).toBe(1);
 });

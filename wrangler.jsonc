@@ -1,0 +1,12 @@
+{
+  // Cloudflare Workers static-assets config, consumed by @cloudflare/vite-plugin
+  // during `npm run build`. Deploys are driven by Cloudflare's GitHub
+  // integration on merge to main (build-gated by ci_gate) — there is no
+  // in-repo deploy workflow. See docs/deployment/ once the CF project exists.
+  "name": "safepass-manager-app",
+  "compatibility_date": "2026-07-10",
+  "assets": {
+    // SPA: unknown paths serve index.html so client-side routes deep-link.
+    "not_found_handling": "single-page-application"
+  }
+}
