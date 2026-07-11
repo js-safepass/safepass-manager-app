@@ -1,6 +1,6 @@
 # Deployment — environments, promotion, and Cloudflare setup
 
-> **Status:** Living reference · last verified 2026-07-10
+> **Status:** Living reference · last verified 2026-07-11
 
 One codebase, three live tiers in lockstep, promoted by branch (same model as
 sentinel-ui's `docs/workflow/pr-workflow.md` — merge commits, **never
@@ -69,14 +69,20 @@ staging project if preview URLs are wanted per PR.
 
 - [ ] Create both Workers projects with the settings above (DNS for the
       custom domains can follow; Workers serve on `*.workers.dev` until then)
-- [ ] Register hosted callbacks on Cognito client `5grgviekbiv44ab9llnsdqnp55`
+- [x] **Staging app client** created on pool `us-gov-west-1_NKGtVs2Rq`:
+      `4diu3cb4nnt78al45dv5r8iqu9`, wired in `.env.staging` (2026-07-11).
+      `http://localhost:5273/*` callbacks verified registered — staging-pool
+      testing from local dev works today.
+- [ ] Confirm the staging web hostname (docs assume
+      `manage-staging.safepass.com`) and register
+      `https://<staging-host>/auth/callback` + `/auth/logout` on the staging
+      client — probe shows it is NOT registered yet
+- [ ] Register production callbacks on client `5grgviekbiv44ab9llnsdqnp55`
       (string-matched, no DNS needed):
-      `https://manage-staging.safepass.com/auth/callback` + `/auth/logout`,
       `https://manage.safepass.com/auth/callback` + `/auth/logout`
-- [ ] Confirm the **staging API base** — `.env.staging` currently carries the
-      placeholder `https://api-staging.safepass.com` (TODO)
 - [ ] Backend CORS: allow the two hosted origins (and `http://localhost:5273`
-      for dev) on the staging/production DataManager
+      for dev) on the staging (`safepass-api.forgearray.dev`) and production
+      DataManager
 - [ ] After first staging deploy: sign in end-to-end on the staging URL
 
 ## Release flow (day to day)
