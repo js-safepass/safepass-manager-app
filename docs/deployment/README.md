@@ -57,7 +57,8 @@ assets, not legacy Pages):
 | Production branch | `main` | `staging` |
 | Build command | `npm run build` | `npm run build:staging` |
 | Deploy command | default (`npx wrangler deploy`) | `npx wrangler deploy --env staging` |
-| Custom domain | `manage.safepass.com` | `manage-staging.safepass.com` |
+| Live URL | `safepass-manager-app.jonathan-sargent.workers.dev` | `safepass-manager-app-staging.jonathan-sargent.workers.dev` |
+| Custom domain (future) | `manage.safepass.com` | TBD |
 
 The staging Worker name/config comes from `wrangler.jsonc`'s
 `env.staging` block (`CLOUDFLARE_ENV=staging` in the build script selects
@@ -73,13 +74,11 @@ staging project if preview URLs are wanted per PR.
       `4diu3cb4nnt78al45dv5r8iqu9`, wired in `.env.staging` (2026-07-11).
       `http://localhost:5273/*` callbacks verified registered — staging-pool
       testing from local dev works today.
-- [ ] Confirm the staging web hostname (docs assume
-      `manage-staging.safepass.com`) and register
-      `https://<staging-host>/auth/callback` + `/auth/logout` on the staging
-      client — probe shows it is NOT registered yet
-- [ ] Register production callbacks on client `5grgviekbiv44ab9llnsdqnp55`
-      (string-matched, no DNS needed):
-      `https://manage.safepass.com/auth/callback` + `/auth/logout`
+- [ ] Register the workers.dev callbacks (owner, Cognito console):
+      staging client `4diu3cb4nnt78al45dv5r8iqu9` gets
+      `https://safepass-manager-app-staging.jonathan-sargent.workers.dev/auth/callback` + `/auth/logout`;
+      production client `5grgviekbiv44ab9llnsdqnp55` gets
+      `https://safepass-manager-app.jonathan-sargent.workers.dev/auth/callback` + `/auth/logout`
 - [ ] Backend CORS: allow the two hosted origins (and `http://localhost:5273`
       for dev) on the staging (`safepass-api.forgearray.dev`) and production
       DataManager
@@ -100,3 +99,18 @@ staging project if preview URLs are wanted per PR.
 
 Rollback = revert the merge commit on the affected branch (never
 force-push); Cloudflare redeploys the reverted state.
+
+## When custom DNS lands (migration checklist)
+
+The workers.dev origins are baked into auth config in several places. Moving
+to `manage.safepass.com` (and a staging equivalent) means, per environment:
+
+1. Add the custom domain to the Cloudflare project (old URL keeps working).
+2. Register the new `/auth/callback` + `/auth/logout` URLs on that env's
+   Cognito app client — keep the workers.dev entries during transition.
+3. Update `VITE_COGNITO_REDIRECT_URI`/`_LOGOUT_URI` in `.env.staging` /
+   `.env.production`, and `server.url` in `capacitor.config.ts` (production
+   only — this one requires a native shell rebuild, D1).
+4. Backend CORS: add the new origins.
+5. Promote through the normal flow; verify sign-in on the new domain, then
+   optionally retire the workers.dev callback entries.
