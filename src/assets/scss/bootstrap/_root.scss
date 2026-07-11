@@ -1,0 +1,190 @@
+@use "sass:meta";
+@use "./variables" as bvars;
+
+:root,
+[data-bs-theme="light"] {
+  // Note: Custom variable values only support SassScript inside `#{}`.
+
+  // Colors
+  //
+  // Generate palettes for full colors, grays, and theme colors.
+
+  @each $color, $value in $colors {
+    --#{bvars.$prefix}#{$color}: #{$value};
+  }
+
+  @each $color, $value in $grays {
+    --#{bvars.$prefix}gray-#{$color}: #{$value};
+  }
+
+  @each $color, $value in $theme-colors {
+    --#{bvars.$prefix}#{$color}: #{$value};
+  }
+
+  @each $color, $value in $theme-colors-rgb {
+    --#{bvars.$prefix}#{$color}-rgb: #{$value};
+  }
+
+  @each $color, $value in $theme-colors-text {
+    --#{bvars.$prefix}#{$color}-text-emphasis: #{$value};
+  }
+
+  @each $color, $value in $theme-colors-bg-subtle {
+    --#{bvars.$prefix}#{$color}-bg-subtle: #{$value};
+  }
+
+  @each $color, $value in $theme-colors-border-subtle {
+    --#{bvars.$prefix}#{$color}-border-subtle: #{$value};
+  }
+
+  --#{bvars.$prefix}white-rgb: #{to-rgb($white)};
+  --#{bvars.$prefix}black-rgb: #{to-rgb($black)};
+
+  // Fonts
+
+  // Note: Use `inspect` for lists so that quoted items keep the quotes.
+  // See https://github.com/sass/sass/issues/2383#issuecomment-336349172
+  --#{bvars.$prefix}font-sans-serif: #{meta.inspect($font-family-sans-serif)};
+  --#{bvars.$prefix}font-monospace: #{meta.inspect($font-family-monospace)};
+  --#{bvars.$prefix}gradient: #{$gradient};
+
+  // Root and body
+  // scss-docs-start root-body-variables
+  @if $font-size-root != null {
+    --#{bvars.$prefix}root-font-size: #{$font-size-root};
+  }
+  --#{bvars.$prefix}body-font-family: #{meta.inspect($font-family-base)};
+  @include rfs($font-size-base, --#{bvars.$prefix}body-font-size);
+  --#{bvars.$prefix}body-font-weight: #{$font-weight-base};
+  --#{bvars.$prefix}body-line-height: #{$line-height-base};
+  @if $body-text-align != null {
+    --#{bvars.$prefix}body-text-align: #{$body-text-align};
+  }
+
+  --#{bvars.$prefix}body-color: #{$body-color};
+  --#{bvars.$prefix}body-color-rgb: #{to-rgb($body-color)};
+  --#{bvars.$prefix}body-bg: #{$body-bg};
+  --#{bvars.$prefix}body-bg-rgb: #{to-rgb($body-bg)};
+
+  --#{bvars.$prefix}emphasis-color: #{$body-emphasis-color};
+  --#{bvars.$prefix}emphasis-color-rgb: #{to-rgb($body-emphasis-color)};
+
+  --#{bvars.$prefix}secondary-color: #{$body-secondary-color};
+  --#{bvars.$prefix}secondary-color-rgb: #{to-rgb($body-secondary-color)};
+  --#{bvars.$prefix}secondary-bg: #{$body-secondary-bg};
+  --#{bvars.$prefix}secondary-bg-rgb: #{to-rgb($body-secondary-bg)};
+
+  --#{bvars.$prefix}tertiary-color: #{$body-tertiary-color};
+  --#{bvars.$prefix}tertiary-color-rgb: #{to-rgb($body-tertiary-color)};
+  --#{bvars.$prefix}tertiary-bg: #{$body-tertiary-bg};
+  --#{bvars.$prefix}tertiary-bg-rgb: #{to-rgb($body-tertiary-bg)};
+  // scss-docs-end root-body-variables
+
+  --#{bvars.$prefix}heading-color: #{$headings-color};
+
+  --#{bvars.$prefix}link-color: #{$link-color};
+  --#{bvars.$prefix}link-color-rgb: #{to-rgb($link-color)};
+  --#{bvars.$prefix}link-decoration: #{$link-decoration};
+
+  --#{bvars.$prefix}link-hover-color: #{$link-hover-color};
+  --#{bvars.$prefix}link-hover-color-rgb: #{to-rgb($link-hover-color)};
+
+  @if $link-hover-decoration != null {
+    --#{bvars.$prefix}link-hover-decoration: #{$link-hover-decoration};
+  }
+
+  --#{bvars.$prefix}code-color: #{$code-color};
+  --#{bvars.$prefix}highlight-color: #{$mark-color};
+  --#{bvars.$prefix}highlight-bg: #{$mark-bg};
+
+  // scss-docs-start root-border-var
+  --#{bvars.$prefix}border-width: #{$border-width};
+  --#{bvars.$prefix}border-style: #{$border-style};
+  --#{bvars.$prefix}border-color: #{$border-color};
+  --#{bvars.$prefix}border-color-translucent: #{$border-color-translucent};
+
+  --#{bvars.$prefix}border-radius: #{$border-radius};
+  --#{bvars.$prefix}border-radius-sm: #{$border-radius-sm};
+  --#{bvars.$prefix}border-radius-lg: #{$border-radius-lg};
+  --#{bvars.$prefix}border-radius-xl: #{$border-radius-xl};
+  --#{bvars.$prefix}border-radius-xxl: #{$border-radius-xxl};
+  --#{bvars.$prefix}border-radius-2xl: var(--#{bvars.$prefix}border-radius-xxl); // Deprecated in v5.3.0 for consistency
+  --#{bvars.$prefix}border-radius-pill: #{$border-radius-pill};
+  // scss-docs-end root-border-var
+
+  --#{bvars.$prefix}box-shadow: #{$box-shadow};
+  --#{bvars.$prefix}box-shadow-sm: #{$box-shadow-sm};
+  --#{bvars.$prefix}box-shadow-lg: #{$box-shadow-lg};
+  --#{bvars.$prefix}box-shadow-inset: #{$box-shadow-inset};
+
+  // Focus styles
+  // scss-docs-start root-focus-variables
+  --#{bvars.$prefix}focus-ring-width: #{$focus-ring-width};
+  --#{bvars.$prefix}focus-ring-opacity: #{$focus-ring-opacity};
+  --#{bvars.$prefix}focus-ring-color: #{$focus-ring-color};
+  // scss-docs-end root-focus-variables
+
+  // scss-docs-start root-form-validation-variables
+  --#{bvars.$prefix}form-valid-color: #{$form-valid-color};
+  --#{bvars.$prefix}form-valid-border-color: #{$form-valid-border-color};
+  --#{bvars.$prefix}form-invalid-color: #{$form-invalid-color};
+  --#{bvars.$prefix}form-invalid-border-color: #{$form-invalid-border-color};
+  // scss-docs-end root-form-validation-variables
+}
+
+@if $enable-dark-mode {
+  @include color-mode(dark, true) {
+    color-scheme: dark;
+
+    // scss-docs-start root-dark-mode-vars
+    --#{bvars.$prefix}body-color: #{$body-color-dark};
+    --#{bvars.$prefix}body-color-rgb: #{to-rgb($body-color-dark)};
+    --#{bvars.$prefix}body-bg: #{$body-bg-dark};
+    --#{bvars.$prefix}body-bg-rgb: #{to-rgb($body-bg-dark)};
+
+    --#{bvars.$prefix}emphasis-color: #{$body-emphasis-color-dark};
+    --#{bvars.$prefix}emphasis-color-rgb: #{to-rgb($body-emphasis-color-dark)};
+
+    --#{bvars.$prefix}secondary-color: #{$body-secondary-color-dark};
+    --#{bvars.$prefix}secondary-color-rgb: #{to-rgb($body-secondary-color-dark)};
+    --#{bvars.$prefix}secondary-bg: #{$body-secondary-bg-dark};
+    --#{bvars.$prefix}secondary-bg-rgb: #{to-rgb($body-secondary-bg-dark)};
+
+    --#{bvars.$prefix}tertiary-color: #{$body-tertiary-color-dark};
+    --#{bvars.$prefix}tertiary-color-rgb: #{to-rgb($body-tertiary-color-dark)};
+    --#{bvars.$prefix}tertiary-bg: #{$body-tertiary-bg-dark};
+    --#{bvars.$prefix}tertiary-bg-rgb: #{to-rgb($body-tertiary-bg-dark)};
+
+    @each $color, $value in $theme-colors-text-dark {
+      --#{bvars.$prefix}#{$color}-text-emphasis: #{$value};
+    }
+
+    @each $color, $value in $theme-colors-bg-subtle-dark {
+      --#{bvars.$prefix}#{$color}-bg-subtle: #{$value};
+    }
+
+    @each $color, $value in $theme-colors-border-subtle-dark {
+      --#{bvars.$prefix}#{$color}-border-subtle: #{$value};
+    }
+
+    --#{bvars.$prefix}heading-color: #{$headings-color-dark};
+
+    --#{bvars.$prefix}link-color: #{$link-color-dark};
+    --#{bvars.$prefix}link-hover-color: #{$link-hover-color-dark};
+    --#{bvars.$prefix}link-color-rgb: #{to-rgb($link-color-dark)};
+    --#{bvars.$prefix}link-hover-color-rgb: #{to-rgb($link-hover-color-dark)};
+
+    --#{bvars.$prefix}code-color: #{$code-color-dark};
+    --#{bvars.$prefix}highlight-color: #{$mark-color-dark};
+    --#{bvars.$prefix}highlight-bg: #{$mark-bg-dark};
+
+    --#{bvars.$prefix}border-color: #{$border-color-dark};
+    --#{bvars.$prefix}border-color-translucent: #{$border-color-translucent-dark};
+
+    --#{bvars.$prefix}form-valid-color: #{$form-valid-color-dark};
+    --#{bvars.$prefix}form-valid-border-color: #{$form-valid-border-color-dark};
+    --#{bvars.$prefix}form-invalid-color: #{$form-invalid-color-dark};
+    --#{bvars.$prefix}form-invalid-border-color: #{$form-invalid-border-color-dark};
+    // scss-docs-end root-dark-mode-vars
+  }
+}

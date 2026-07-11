@@ -1,0 +1,28 @@
+@use "sass:color";
+@use "sass:math";
+@use "../variables" as bvars;
+
+// scss-docs-start table-variant
+@mixin table-variant($state, $background) {
+  .table-#{$state} {
+    $color: color-contrast(opaque(bvars.$body-bg, $background));
+    $hover-bg: color.mix($color, $background, math.percentage(bvars.$table-hover-bg-factor));
+    $striped-bg: color.mix($color, $background, math.percentage(bvars.$table-striped-bg-factor));
+    $active-bg: color.mix($color, $background, math.percentage(bvars.$table-active-bg-factor));
+    $table-border-color: color.mix($color, $background, math.percentage(bvars.$table-border-factor));
+
+    --#{bvars.$prefix}table-color: #{$color};
+    --#{bvars.$prefix}table-bg: #{$background};
+    --#{bvars.$prefix}table-border-color: #{$table-border-color};
+    --#{bvars.$prefix}table-striped-bg: #{$striped-bg};
+    --#{bvars.$prefix}table-striped-color: #{color-contrast($striped-bg)};
+    --#{bvars.$prefix}table-active-bg: #{$active-bg};
+    --#{bvars.$prefix}table-active-color: #{color-contrast($active-bg)};
+    --#{bvars.$prefix}table-hover-bg: #{$hover-bg};
+    --#{bvars.$prefix}table-hover-color: #{color-contrast($hover-bg)};
+
+    color: var(--#{bvars.$prefix}table-color);
+    border-color: var(--#{bvars.$prefix}table-border-color);
+  }
+}
+// scss-docs-end table-variant

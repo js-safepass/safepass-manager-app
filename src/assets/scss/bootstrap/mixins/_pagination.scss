@@ -1,0 +1,11 @@
+// Pagination
+@use "../variables" as bvars;
+
+// scss-docs-start pagination-mixin
+@mixin pagination-size($padding-y, $padding-x, $font-size, $border-radius) {
+  --#{bvars.$prefix}pagination-padding-x: #{$padding-x};
+  --#{bvars.$prefix}pagination-padding-y: #{$padding-y};
+  @include rfs($font-size, --#{bvars.$prefix}pagination-font-size);
+  --#{bvars.$prefix}pagination-border-radius: #{$border-radius};
+}
+// scss-docs-end pagination-mixin

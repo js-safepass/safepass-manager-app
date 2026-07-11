@@ -1,0 +1,3 @@
+@use "../_variables" as dds;
+
+$carousel-indicator-radius: dds.$border-radius-pill !default;

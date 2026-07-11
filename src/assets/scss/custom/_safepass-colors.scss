@@ -1,0 +1,44 @@
+// _safepass-colors.scss — Application-specific color tokens.
+//
+// These extend Bootstrap's palette with colors specific to SafePass UI.
+// All values reference Bootstrap variables where possible and respond to
+// light/dark theme via [data-bs-theme].
+//
+// See docs/standards/colors.md for the full color guide.
+
+:root {
+  // ── Scope hierarchy ─────────────────────────────────────────────────
+  // Used in OrgTreeViewer, MapPointsMap, and anywhere scope levels are
+  // color-coded. Each level gets a base color plus rgba tints for
+  // backgrounds, shadows, and group borders.
+  --safepass-scope-org:              #{$primary};
+  --safepass-scope-org-rgb:          #{red($primary)}, #{green($primary)}, #{blue($primary)};
+  --safepass-scope-division:         #20c997;
+  --safepass-scope-division-rgb:     32, 201, 151;
+  --safepass-scope-location:         #fd7e14;
+  --safepass-scope-location-rgb:     253, 126, 20;
+  --safepass-scope-building:         #6f42c1;
+  --safepass-scope-building-rgb:     111, 66, 193;
+  --safepass-scope-floor:            #{$info};
+  --safepass-scope-floor-rgb:        #{red($info)}, #{green($info)}, #{blue($info)};
+  --safepass-scope-station:          #{$info};
+  --safepass-scope-station-rgb:      #{red($info)}, #{green($info)}, #{blue($info)};
+
+  // ── Chart / data-viz palette ────────────────────────────────────────
+  // Used by TimeseriesChart and other metric visualizations.
+  --safepass-chart-1:                #{$primary};
+  --safepass-chart-2:                #2ec4b6;
+  --safepass-chart-3:                #876cfe;
+  --safepass-chart-4:                #ff4b4b;
+  --safepass-chart-5:                #f7b731;
+  --safepass-chart-6:                #4788ff;
+  --safepass-chart-7:                #37e6b0;
+
+  // ── Map feature colors ─────────────────────────────────────────────
+  --safepass-map-track:              #3b82f6;
+  --safepass-map-geofence:           #{$primary};
+  --safepass-map-marker:             #{$primary};
+
+  // ── Theme toggle (dark-primary accent) ─────────────────────────────
+  --safepass-primary-dark:           #0c2556;
+}

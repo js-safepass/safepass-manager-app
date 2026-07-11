@@ -1,0 +1,24 @@
+{
+  // Cloudflare Workers static-assets config, consumed by @cloudflare/vite-plugin
+  // during `npm run build` / `npm run build:staging`. Deploys are driven by
+  // Cloudflare's GitHub integration (build-gated by ci_gate) — there is no
+  // in-repo deploy workflow. Setup runbook: docs/deployment/README.md.
+  //
+  // Environments: the staging Worker is selected at build time via
+  // CLOUDFLARE_ENV=staging (set by the build:staging script), which makes the
+  // Vite plugin emit dist/wrangler.json with the staging name/route.
+  "name": "safepass-manager-app",
+  "compatibility_date": "2026-07-10",
+  "assets": {
+    // SPA: unknown paths serve index.html so client-side routes deep-link.
+    "not_found_handling": "single-page-application"
+  },
+  "env": {
+    "staging": {
+      "name": "safepass-manager-app-staging",
+      "assets": {
+        "not_found_handling": "single-page-application"
+      }
+    }
+  }
+}

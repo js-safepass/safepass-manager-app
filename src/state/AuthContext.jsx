@@ -1,45 +1,65 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { getUserFacingError } from '../lib/userErrors.js';
-import { wipeKioskCredentials } from '../lib/kioskCredentials.js';
-import { getJwtSub } from '../lib/jwtUtil.js';
-import { isNative } from '../lib/platform.js';
+import { getJwtSub, isJwtFresh } from '../lib/jwtUtil.js';
+import { buildLogoutUrl, refreshTokens } from '../lib/cognitoHostedUi.js';
 import { AuthContext } from './useAuth.js';
 
+// Auth state for an attended app: Cognito tokens live in memory only (never
+// web storage — XSS-exfiltratable; seed bundle DECISIONS D6). A page refresh
+// drops them and the user signs in again; that's the accepted trade-off (no
+// Layer-2 device session — decision #4 in docs/build-plan.md).
+//
+// Token lifetime: the access token is short-lived (~1h). getFreshAccessToken
+// returns the current token while fresh and otherwise runs the refresh-token
+// grant against the bridge — deduped so concurrent callers share one refresh
+// (mirrors sentinel-ui's authToken.js). Refresh failure signs the user out;
+// the login screen restores the session in one click while the Cognito SSO
+// cookie is still valid.
+//
+// VITE_MODE=dev short-circuits to signed_in with a placeholder token (or
+// VITE_DEV_MANAGER_JWT) so local development doesn't need Cognito at all.
 export function AuthProvider({ children }) {
   const isDevMode = import.meta.env.VITE_MODE === 'dev';
-  const devToken = import.meta.env.VITE_DEV_KIOSK_JWT || 'dev';
+  const devToken = import.meta.env.VITE_DEV_MANAGER_JWT || 'dev';
 
-  const [kioskJwt, setKioskJwt] = useState(isDevMode ? devToken : null);
-  // Cognito subject identifier — extracted from the JWT at sign-in time and
-  // retained even after the JWT itself is purged at lock. Used by
-  // persistKioskCredentials to bind a Keychain entry to the staff user so
-  // restore on a shared device rejects entries from a different operator.
-  // Possessing the `sub` doesn't authorize anything against the backend; it's
-  // an identifier, not a credential.
+  // Tokens live in a ref, not state: they rotate silently on refresh and
+  // nothing should re-render on rotation. `status` is the render-driving
+  // signal.
+  const tokensRef = useRef({
+    accessToken: isDevMode ? devToken : null,
+    refreshToken: null,
+  });
+  const refreshPromiseRef = useRef(null);
+
+  // Cognito subject identifier — an identifier, not a credential; useful for
+  // logging/support correlation.
   const [cognitoUserSub, setCognitoUserSub] = useState(() =>
     isDevMode ? getJwtSub(devToken) : null,
   );
-  // Note: `status` is intentionally decoupled from `kioskJwt`. After a
-  // successful kiosk-session lock we purge the JWT (Phase 8 of the
-  // unattended-session-longevity initiative) but keep `status='signed_in'`
-  // so App.jsx continues rendering the kiosk view instead of bouncing back
-  // to Login. status flips to 'signed_out' only via the explicit signOut()
-  // path below — which resetSession invokes on every kiosk-session teardown.
-  //
-  // 'checking_restore' is a Phase 9 transitional state used on native cold
-  // start: before showing Login, KioskSessionContext attempts an unattended
-  // Keychain restore (session_token + DPoP — no Cognito needed). On success
-  // we flip to 'signed_in' using the persisted cognitoUserSub; on failure
-  // we fall through to 'signed_out'. Web has no Keychain so it starts
-  // 'signed_out' as before. Dev mode short-circuits to 'signed_in'.
-  const [status, setStatus] = useState(() => {
-    if (isDevMode) return 'signed_in';
-    if (isNative) return 'checking_restore';
-    return 'signed_out';
-  });
+  const [status, setStatus] = useState(() => (isDevMode ? 'signed_in' : 'signed_out'));
   const [error, setError] = useState(null);
 
-  const signIn = useCallback(async ({ token }) => {
+  const signOut = useCallback(({ hosted = true } = {}) => {
+    const hadToken = Boolean(tokensRef.current.accessToken);
+    tokensRef.current = { accessToken: null, refreshToken: null };
+    refreshPromiseRef.current = null;
+    setCognitoUserSub(null);
+    setStatus('signed_out');
+    setError(null);
+    // End the Cognito Hosted UI session too, so "sign out" means signed out
+    // — but only when the user explicitly asked (hosted=true). API-driven
+    // sign-outs (401s) skip it: the SSO cookie may still be valid and lets
+    // the user back in with one click.
+    if (hosted && hadToken && !isDevMode) {
+      try {
+        window.location.assign(buildLogoutUrl());
+      } catch {
+        // Missing logout config — local sign-out already happened.
+      }
+    }
+  }, [isDevMode]);
+
+  const signIn = useCallback(async ({ token, refreshToken } = {}) => {
     if (isDevMode && !token) {
       setStatus('signed_in');
       setError(null);
@@ -49,85 +69,58 @@ export function AuthProvider({ children }) {
     setError(null);
     if (!token) {
       setStatus('signed_out');
-      setError(getUserFacingError('Kiosk JWT is required', 'signIn'));
+      setError(getUserFacingError('Access token is required', 'signIn'));
       return;
     }
-    setKioskJwt(token);
+    tokensRef.current = { accessToken: token, refreshToken: refreshToken || null };
     setCognitoUserSub(getJwtSub(token));
     setStatus('signed_in');
   }, [isDevMode]);
 
-  // Purge the live JWT but keep the operator authenticated for kiosk-side
-  // flows. Called from KioskSessionContext.lockSession on successful lock.
-  // The retained `cognitoUserSub` allows persistKioskCredentials to keep
-  // binding rotated session tokens (from later refreshes) to the same user
-  // without the JWT in memory.
-  //
-  // Safe to call when the JWT is already null (idempotent).
-  const clearKioskJwt = useCallback(() => {
-    setKioskJwt(null);
-  }, []);
+  const getFreshAccessToken = useCallback(async () => {
+    if (isDevMode) return devToken;
+    const { accessToken, refreshToken } = tokensRef.current;
+    if (accessToken && isJwtFresh(accessToken)) return accessToken;
+    if (!refreshToken) return accessToken; // stale or null — server will 401, caller handles
 
-  // Phase 9: KioskSessionContext calls this when an unattended Keychain
-  // restore succeeds on cold start. Flips status to 'signed_in' using the
-  // persisted Cognito user sub — without ever acquiring a live JWT. The
-  // kiosk session_token + DPoP key are sufficient for every post-start
-  // backend call (verified by the API inventory), so the operator never
-  // needs to be present for a reboot recovery.
-  const setSignedInFromRestore = useCallback((persistedCognitoUserSub) => {
-    setCognitoUserSub(persistedCognitoUserSub || null);
-    setKioskJwt(null);
-    setError(null);
-    setStatus('signed_in');
-  }, []);
+    if (!refreshPromiseRef.current) {
+      refreshPromiseRef.current = (async () => {
+        try {
+          const payload = await refreshTokens({ refreshToken });
+          const nextAccess = payload.access_token;
+          if (!nextAccess) throw new Error('Token refresh response missing access token.');
+          tokensRef.current = {
+            accessToken: nextAccess,
+            // Cognito doesn't rotate the refresh token by default; keep ours
+            // unless the response carries a replacement.
+            refreshToken: payload.refresh_token || refreshToken,
+          };
+          return nextAccess;
+        } finally {
+          refreshPromiseRef.current = null;
+        }
+      })();
+    }
 
-  // Phase 9: called when unattended restore on cold start cannot proceed —
-  // no Keychain entry, validation rejected by the server, retries
-  // exhausted, etc. Falls through to the normal signed-out / Login flow.
-  // signOut() is reused so any stale state is consistently wiped.
-  const markUnattendedRestoreFailed = useCallback(() => {
-    setKioskJwt(null);
-    setCognitoUserSub(null);
-    setStatus('signed_out');
-    setError(null);
-    wipeKioskCredentials().catch(() => {});
-  }, []);
-
-  const signOut = useCallback(() => {
-    setKioskJwt(null);
-    setCognitoUserSub(null);
-    setStatus('signed_out');
-    setError(null);
-    // Belt-and-suspenders: also wipe the persisted kiosk credentials.
-    // KioskSessionContext.resetSession is the primary owner of this wipe,
-    // but signOut paths that bypass resetSession (e.g. forced re-auth)
-    // shouldn't leave stale Keychain state behind.
-    wipeKioskCredentials().catch(() => {});
-  }, []);
+    try {
+      return await refreshPromiseRef.current;
+    } catch (err) {
+      // Refresh token is dead (revoked/expired) — back to the login screen.
+      signOut({ hosted: false });
+      throw err;
+    }
+  }, [isDevMode, devToken, signOut]);
 
   const value = useMemo(
     () => ({
-      kioskJwt,
       cognitoUserSub,
       status,
       error,
       signIn,
       signOut,
-      clearKioskJwt,
-      setSignedInFromRestore,
-      markUnattendedRestoreFailed,
+      getFreshAccessToken,
     }),
-    [
-      kioskJwt,
-      cognitoUserSub,
-      status,
-      error,
-      signIn,
-      signOut,
-      clearKioskJwt,
-      setSignedInFromRestore,
-      markUnattendedRestoreFailed,
-    ],
+    [cognitoUserSub, status, error, signIn, signOut, getFreshAccessToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

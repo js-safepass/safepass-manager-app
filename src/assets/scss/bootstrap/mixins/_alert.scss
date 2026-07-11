@@ -1,0 +1,19 @@
+@use "../variables" as bvars;
+@include deprecate("`alert-variant()`", "v5.3.0", "v6.0.0");
+
+// scss-docs-start alert-variant-mixin
+@mixin alert-variant($background, $border, $color) {
+  --#{bvars.$prefix}alert-color: #{$color};
+  --#{bvars.$prefix}alert-bg: #{$background};
+  --#{bvars.$prefix}alert-border-color: #{$border};
+  --#{bvars.$prefix}alert-link-color: #{shade-color($color, 20%)};
+
+  @if bvars.$enable-gradients {
+    background-image: var(--#{bvars.$prefix}gradient);
+  }
+
+  .alert-link {
+    color: var(--#{bvars.$prefix}alert-link-color);
+  }
+}
+// scss-docs-end alert-variant-mixin

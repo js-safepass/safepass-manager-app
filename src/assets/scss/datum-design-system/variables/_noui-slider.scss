@@ -1,0 +1,27 @@
+@use "../_variables" as dds;
+
+// noUiSlider
+$noUi-track-height:                  .25rem !default;
+$noUi-track-width:                   .25rem !default;
+$noUi-track-btn-width:               1.125rem !default;
+$noUi-track-btn-height:              1.075rem !default;
+$noUi-track-btn-align-y:             -.5rem!default;
+$noUi-track-btn-align-x:             -.5rem!default;
+$noUi-track-btn-radius:              dds.$border-radius-pill !default;
+$noUi-trake-btn-border:              dds.$form-range-thumb-border !default;
+
+$noUi-track-shadow:                  true;
+$noUi-box-color-shadow:              dds.$box-shadow !default;
+$noUi-box-color-shadow-hover:        dds.$box-shadow !default;
+$noUi-box-shadow-tint:               dds.$box-shadow !default;
+$noUi-box-shadow-shade:              dds.$box-shadow !default;
+$noUi-varients: (
+  "primary":     dds.$primary,
+  "secondary":   dds.$secondary,
+  "success":     dds.$success,
+  "danger":      dds.$danger,
+  "warning":     dds.$warning,
+  "info":        dds.$info,
+  "dark":        dds.$dark,
+  "light":       dds.$light
+)!default;

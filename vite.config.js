@@ -53,6 +53,28 @@ export default defineConfig(({ mode }) => ({
     __APP_BUILD_ID__: JSON.stringify(buildId),
   },
 
+  // Dedicated dev port for this app (sentinel-ui and other local work sit on
+  // Vite's 5173 default). strictPort: the Cognito app client registers the
+  // exact localhost callback URL, so silently hopping to :5274 would break
+  // OAuth — better to fail loudly.
+  server: {
+    port: 5273,
+    strictPort: true,
+  },
+
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // The SCSS theme under src/assets/scss is ported from sentinel-ui
+        // and carries its upstream Sass tech debt (@import syntax, legacy
+        // color/global built-ins). Rewriting it here would fork the theme
+        // from upstream — silence the named deprecations instead; any
+        // migration should happen in sentinel-ui first and be re-ported.
+        silenceDeprecations: ['import', 'global-builtin', 'color-functions', 'if-function'],
+      },
+    },
+  },
+
   // Strip console.debug and console.warn from production builds.
   // console.error is preserved for genuine runtime errors.
   esbuild: mode === 'production' ? {

@@ -1,0 +1,149 @@
+@use "sass:map";
+@use "./variables" as bvars;
+
+// stylelint-disable function-disallowed-list
+
+%offcanvas-css-vars {
+  // scss-docs-start offcanvas-css-vars
+  --#{bvars.$prefix}offcanvas-zindex: #{$zindex-offcanvas};
+  --#{bvars.$prefix}offcanvas-width: #{$offcanvas-horizontal-width};
+  --#{bvars.$prefix}offcanvas-height: #{$offcanvas-vertical-height};
+  --#{bvars.$prefix}offcanvas-padding-x: #{$offcanvas-padding-x};
+  --#{bvars.$prefix}offcanvas-padding-y: #{$offcanvas-padding-y};
+  --#{bvars.$prefix}offcanvas-color: #{$offcanvas-color};
+  --#{bvars.$prefix}offcanvas-bg: #{$offcanvas-bg-color};
+  --#{bvars.$prefix}offcanvas-border-width: #{$offcanvas-border-width};
+  --#{bvars.$prefix}offcanvas-border-color: #{$offcanvas-border-color};
+  --#{bvars.$prefix}offcanvas-box-shadow: #{$offcanvas-box-shadow};
+  --#{bvars.$prefix}offcanvas-transition: #{transform $offcanvas-transition-duration ease-in-out};
+  --#{bvars.$prefix}offcanvas-title-line-height: #{$offcanvas-title-line-height};
+  // scss-docs-end offcanvas-css-vars
+}
+
+@each $breakpoint in map.keys($grid-breakpoints) {
+  $next: breakpoint-next($breakpoint, $grid-breakpoints);
+  $infix: breakpoint-infix($next, $grid-breakpoints);
+
+  .offcanvas#{$infix} {
+    @extend %offcanvas-css-vars;
+  }
+}
+
+@each $breakpoint in map.keys($grid-breakpoints) {
+  $next: breakpoint-next($breakpoint, $grid-breakpoints);
+  $infix: breakpoint-infix($next, $grid-breakpoints);
+
+  .offcanvas#{$infix} {
+    @include media-breakpoint-down($next) {
+      position: fixed;
+      bottom: 0;
+      z-index: var(--#{bvars.$prefix}offcanvas-zindex);
+      display: flex;
+      flex-direction: column;
+      max-width: 100%;
+      color: var(--#{bvars.$prefix}offcanvas-color);
+      visibility: hidden;
+      background-color: var(--#{bvars.$prefix}offcanvas-bg);
+      background-clip: padding-box;
+      outline: 0;
+      @include box-shadow(var(--#{bvars.$prefix}offcanvas-box-shadow));
+      @include transition(var(--#{bvars.$prefix}offcanvas-transition));
+
+      &.offcanvas-start {
+        top: 0;
+        left: 0;
+        width: var(--#{bvars.$prefix}offcanvas-width);
+        border-right: var(--#{bvars.$prefix}offcanvas-border-width) solid var(--#{bvars.$prefix}offcanvas-border-color);
+        transform: translateX(-100%);
+      }
+
+      &.offcanvas-end {
+        top: 0;
+        right: 0;
+        width: var(--#{bvars.$prefix}offcanvas-width);
+        border-left: var(--#{bvars.$prefix}offcanvas-border-width) solid var(--#{bvars.$prefix}offcanvas-border-color);
+        transform: translateX(100%);
+      }
+
+      &.offcanvas-top {
+        top: 0;
+        right: 0;
+        left: 0;
+        height: var(--#{bvars.$prefix}offcanvas-height);
+        max-height: 100%;
+        border-bottom: var(--#{bvars.$prefix}offcanvas-border-width) solid var(--#{bvars.$prefix}offcanvas-border-color);
+        transform: translateY(-100%);
+      }
+
+      &.offcanvas-bottom {
+        right: 0;
+        left: 0;
+        height: var(--#{bvars.$prefix}offcanvas-height);
+        max-height: 100%;
+        border-top: var(--#{bvars.$prefix}offcanvas-border-width) solid var(--#{bvars.$prefix}offcanvas-border-color);
+        transform: translateY(100%);
+      }
+
+      &.showing,
+      &.show:not(.hiding) {
+        transform: none;
+      }
+
+      &.showing,
+      &.hiding,
+      &.show {
+        visibility: visible;
+      }
+    }
+
+    @if not ($infix == "") {
+      @include media-breakpoint-up($next) {
+        --#{bvars.$prefix}offcanvas-height: auto;
+        --#{bvars.$prefix}offcanvas-border-width: 0;
+        background-color: transparent !important; // stylelint-disable-line declaration-no-important
+
+        .offcanvas-header {
+          display: none;
+        }
+
+        .offcanvas-body {
+          display: flex;
+          flex-grow: 0;
+          padding: 0;
+          overflow-y: visible;
+          // Reset `background-color` in case `.bg-*` classes are used in offcanvas
+          background-color: transparent !important; // stylelint-disable-line declaration-no-important
+        }
+      }
+    }
+  }
+}
+
+.offcanvas-backdrop {
+  @include overlay-backdrop($zindex-offcanvas-backdrop, $offcanvas-backdrop-bg, $offcanvas-backdrop-opacity);
+}
+
+.offcanvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--#{bvars.$prefix}offcanvas-padding-y) var(--#{bvars.$prefix}offcanvas-padding-x);
+
+  .btn-close {
+    padding: calc(var(--#{bvars.$prefix}offcanvas-padding-y) * .5) calc(var(--#{bvars.$prefix}offcanvas-padding-x) * .5);
+    margin-top: calc(-.5 * var(--#{bvars.$prefix}offcanvas-padding-y));
+    margin-right: calc(-.5 * var(--#{bvars.$prefix}offcanvas-padding-x));
+    margin-bottom: calc(-.5 * var(--#{bvars.$prefix}offcanvas-padding-y));
+  }
+}
+
+.offcanvas-title {
+  margin-bottom: 0;
+  line-height: var(--#{bvars.$prefix}offcanvas-title-line-height);
+}
+
+.offcanvas-body {
+  flex-grow: 1;
+  padding: var(--#{bvars.$prefix}offcanvas-padding-y) var(--#{bvars.$prefix}offcanvas-padding-x);
+  overflow-y: auto;
+}
