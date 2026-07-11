@@ -86,3 +86,34 @@ export async function exchangeCodeForToken({ code, codeVerifier }) {
 
   return payload;
 }
+
+// Refresh-token grant against the bridge token endpoint. Cognito does not
+// rotate the refresh token on this grant by default — callers keep their
+// existing refresh token unless the response carries a new one.
+export async function refreshTokens({ refreshToken }) {
+  const { domain, clientId } = getHostedUiConfig();
+  if (!domain || !clientId) {
+    throw new Error('Missing Cognito Hosted UI configuration');
+  }
+
+  const body = new URLSearchParams();
+  body.set('grant_type', 'refresh_token');
+  body.set('client_id', clientId);
+  body.set('refresh_token', refreshToken);
+
+  const response = await fetch(`${domain}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    const message = payload.error_description || payload.error || 'Token refresh failed';
+    throw new Error(message);
+  }
+
+  return payload;
+}

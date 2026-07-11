@@ -12,6 +12,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css'
 import './assets/scss/datum.scss'
 import './assets/scss/custom.scss'
 import './assets/scss/customizer.scss'
+import './assets/scss/manager-app.scss'
 import App from './App.jsx'
 import { AuthProvider } from './state/AuthContext.jsx'
 import { NetworkProvider } from './state/NetworkContext.jsx'
@@ -26,7 +27,12 @@ import { isNative } from './lib/platform.js'
 // Skip on native — Capacitor's WKWebView/WebView already isolates content,
 // and custom URL schemes (safepassmanager://) break CSP 'self' resolution.
 if (!isNative) {
-  const devConnectSrc = import.meta.env.DEV ? ' http://localhost:5173 ws://localhost:5173' : '';
+  // Derive the dev origin from the actual location instead of hardcoding the
+  // port (dev is pinned to 5273 in vite.config.js, but CAP_SERVER_URL and
+  // preview runs can differ).
+  const devConnectSrc = import.meta.env.DEV
+    ? ` http://${window.location.host} ws://${window.location.host}`
+    : '';
   const cspContent = [
     "default-src 'self'",
     "script-src 'self'",

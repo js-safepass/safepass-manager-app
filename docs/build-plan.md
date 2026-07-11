@@ -76,7 +76,7 @@ extraction with tests beside source (D11), copy-per-app seeding (D12).
 
 | # | Decision | Resolution |
 |---|---|---|
-| 1 | Cognito app client ID | Provided later; env-var based (`VITE_COGNITO_CLIENT_ID`), not blocking — dev-bypass + mock until then |
+| 1 | Cognito app client ID | Provisioned 2026-07-10: `5grgviekbiv44ab9llnsdqnp55` (in `.env.example` as `VITE_COGNITO_CLIENT_ID`). Callback-URL registration + bridge passthrough per HANDOFF-AUTH-TEMPLATE still to verify |
 | 2 | Hostname / scheme | `manage.safepass.com`; deep-link `safepassmanager://`; `appId` `com.safepass.manager` |
 | 3 | App slug | `manager` (repo already `safepass-manager-app`; accepted deviation from the `safepass-<name>-web` naming shape) |
 | 4 | Credential persistence (kiosk Layer 2's keystore half) | **No** — attended app, personal login, tokens in-memory on web. Persistence files (`secureStorage`, `kioskCredentials`, restore/refresh failure policies) removed |
@@ -132,6 +132,35 @@ Ported so every subsequent screen is built once, in the house style:
 - react-bootstrap 2.10 runs on React 19 — no pin-back needed.
 - Login/Home restyled on the system; lint/tests/build fully clean (zero
   warnings — user requirement).
+
+## Core screens v1 ✅ (shipped 2026-07-10, `feat/phase1-core-screens`)
+
+First user-visible cut, fully drivable on the stateful mock: routed shell
+(navy sidebar, offcanvas below lg, pinned topbar), Dashboard (live metric
+tiles + notification feed), Visitors (server-filtered keyset-paginated
+directory, create/edit modal with If-Match, detail + visit history), Visits
+(15s-polled ops list, lifecycle actions gated by ported `visitHelpers`,
+badge-pipeline chips), Notifications (shared provider: 15s poll, optimistic
+read-state, sidebar unread badge). One-call front-desk check-in from visitor
+detail with gate-failure surfacing (428 review, 409 already-in). Mock
+simulates the async badge pipeline so `checking_in → active → encoded_ready`
+progresses live on screen.
+
+**Live-token wiring ✅ (2026-07-10, same branch):** real sign-in now drives
+the app end-to-end — SessionProvider bootstraps `/v1/whoami` (+ tolerant
+provisional `/v1/auth/scopes`), reconciles the persisted org selection
+(`safepass.activeOrgId`), and gates the shell with loading / no-access /
+error states; every API call is org-scoped from the session (no hardcoded
+org ids); silent token refresh via the bridge refresh grant (deduped, 30s
+early-skew) with authoritative 401 → sign-out at the managerApi seam; sign
+out ends the Hosted UI session too. Mode matrix documented in `.env.example`
+— mock stays a build var (`VITE_MANAGER_MOCK`), auth bypass separately
+(`VITE_MODE=dev`), so real-auth+mock-data is a supported testing posture.
+
+Still open from the phases below: org/sub-scope *selector UI* (session holds
+the state; multi-org users get first-org default today), station picker on
+check-in, host attach, visit scheduling, SSE notifications, dashboards
+beyond tiles, tracking map, photos + bulk import, native shells.
 
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 

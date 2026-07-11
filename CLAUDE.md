@@ -21,7 +21,7 @@ Scope of THIS app stays the contractor brief (`docs/contractor-handoff/`): its C
 
 1. **CapacitorHttp stays disabled.** With `server.url` set, CapacitorHttp's GET proxy rewrites URLs to the server host and breaks things. The WebView has a real `https://` origin, so plain `fetch` + CORS works natively.
 2. **JavaScript, not TypeScript.** `.js`/`.jsx` throughout; the `typescript` dep exists only for `capacitor.config.ts` and editor types.
-3. **Auth via the `auth.safepass.com` bridge only** — never the raw `*.amazoncognito.com` endpoint. This app's dedicated app client: *pending provisioning* (pool `us-gov-west-1_jpRl7DoR5`). Tokens are in-memory only on web.
+3. **Production auth via the `auth.safepass.com` bridge only** — never the raw `*.amazoncognito.com` endpoint in production. Production client: `5grgviekbiv44ab9llnsdqnp55` (pool `us-gov-west-1_jpRl7DoR5`). *Owner-directed exception (2026-07-11): staging uses its own pool via its raw FIPS domain — no staging bridge exists; values in `.env.staging`.* Tokens are in-memory only on web.
 4. **Every backend call goes through `src/lib/managerApi.js`** (the centralized seam). The deferred DPoP/step-up hardening retrofits at its `attachProof` hook — never add a second fetch path.
 5. **App-specific backend contracts** (dated confirmations live at the decision point in code):
    - `If-Match` carries the resource's plain integer `version`, not the quoted ETag (sentinel-ui datamanager convention, verified 2026-07-10).
@@ -69,10 +69,11 @@ docs/               design docs & plans — check the Status header; see docs/RE
 
 ## Auth & infra reference
 
-- Cognito Hosted UI via the `auth.safepass.com` bridge → AWS GovCloud Cognito. Pool `us-gov-west-1_jpRl7DoR5`, app client pending provisioning.
+- Cognito Hosted UI via the `auth.safepass.com` bridge → AWS GovCloud Cognito. Pool `us-gov-west-1_jpRl7DoR5`, app client `5grgviekbiv44ab9llnsdqnp55`.
 - Native OAuth: in-app browser + `safepassmanager://localhost/auth/callback` deep link.
 - API base: `https://api.safepass.com`; this client is scoped to the `x-apps: visitor` + `shared` operations in `docs/contractor-handoff/3-api-spec.yaml`.
 - Env surface: all runtime config is `VITE_*` via `.env*` files (see `.env.example`); never a secret in a `VITE_` var. `VITE_MODE=dev` = auth bypass; `VITE_MANAGER_MOCK=true` = mock API (app must stay fully drivable with no backend).
+- Dev server is pinned to port **5273** (`strictPort` — OAuth callbacks are registered for `localhost:5273`; other local projects hold 5173).
 
 ## Project context
 

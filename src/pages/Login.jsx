@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { Alert, Button, Spinner } from 'react-bootstrap';
-import SectionCard from '../components/SectionCard.jsx';
+import { Alert, Button, Card, Col, Container, Row, Spinner } from 'react-bootstrap';
+import AuthBrand from '../components/AuthBrand.jsx';
 import { useAuth } from '../state/useAuth.js';
 import { buildAuthorizeUrl, exchangeCodeForToken } from '../lib/cognitoHostedUi.js';
 import { generateCodeChallenge, generateCodeVerifier } from '../lib/pkce.js';
@@ -27,7 +27,7 @@ const Login = () => {
 
   useEffect(() => {
     if (window.location.pathname === '/auth/logout') {
-      signOut();
+      signOut({ hosted: false }); // already past the hosted logout redirect
       window.history.replaceState({}, document.title, '/');
     }
   }, [signOut]);
@@ -71,7 +71,7 @@ const Login = () => {
         if (!accessToken) {
           throw new Error('Token response missing access token.');
         }
-        await signIn({ token: accessToken });
+        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
       } catch (exchangeError) {
         setLocalError(getUserFacingError(exchangeError, 'signIn'));
       } finally {
@@ -131,7 +131,7 @@ const Login = () => {
         if (!accessToken) {
           throw new Error('Token response missing access token.');
         }
-        await signIn({ token: accessToken });
+        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
       } catch (err) {
         setLocalError(getUserFacingError(err, 'signIn'));
       } finally {
@@ -183,30 +183,58 @@ const Login = () => {
     }
   };
 
+  // Layout mirrors sentinel-ui's views/pages/auth/login.jsx — SafePass auth
+  // pages stay visually identical across apps (user requirement 2026-07-10:
+  // consistent auth flows keep people comfortable); this app's identity
+  // appears only in the AuthBrand subtext.
   return (
-    <div className="d-flex align-items-center justify-content-center min-vh-100">
-      <SectionCard title="Staff Sign-In" bodyClassName="text-center" className="mb-0">
-        <p className="text-muted">Sign in with your SafePass account to continue</p>
-        <Button
-          variant="primary"
-          onClick={handleHostedLogin}
-          disabled={loading || status === 'signing_in'}
-        >
-          {loading ? (
-            <>
-              <Spinner animation="border" size="sm" className="me-2" />
-              Redirecting…
-            </>
-          ) : (
-            'Sign In'
-          )}
-        </Button>
-        {(localError || error) && (
-          <Alert variant="danger" className="mt-3 mb-0">
-            {localError || error}
-          </Alert>
-        )}
-      </SectionCard>
+    <div className="login-content">
+      <Container className="dvh-100">
+        <Row className="align-items-center justify-content-center h-100">
+          <Col lg={6}>
+            <Card>
+              <Card.Body className="text-center">
+                <div className="auth-logo my-4 d-flex justify-content-center">
+                  <AuthBrand subtext="Visitor Management" />
+                </div>
+
+                <p className="text-secondary mb-4">
+                  The SafePass system requires authentication. <br />
+                  Please sign in to access the application.
+                </p>
+
+                <div className="spacer" style={{ height: '20px' }}></div>
+
+                <div className="d-flex justify-content-center">
+                  <Button
+                    variant="primary"
+                    onClick={handleHostedLogin}
+                    disabled={loading || status === 'signing_in'}
+                    className="me-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Redirecting…
+                      </>
+                    ) : (
+                      'Continue'
+                    )}
+                  </Button>
+                </div>
+
+                {(localError || error) && (
+                  <Alert variant="danger" className="mt-4 mb-0">
+                    {localError || error}
+                  </Alert>
+                )}
+
+                <div className="spacer" style={{ height: '20px' }}></div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };
