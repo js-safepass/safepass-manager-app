@@ -1,0 +1,39 @@
+// Base class
+//
+// Requires one of the contextual, color modifier classes for `color` and
+// `background-color`.
+@use "./variables" as bvars;
+
+.badge {
+  // scss-docs-start badge-css-vars
+  --#{bvars.$prefix}badge-padding-x: #{$badge-padding-x};
+  --#{bvars.$prefix}badge-padding-y: #{$badge-padding-y};
+  @include rfs($badge-font-size, --#{bvars.$prefix}badge-font-size);
+  --#{bvars.$prefix}badge-font-weight: #{$badge-font-weight};
+  --#{bvars.$prefix}badge-color: #{$badge-color};
+  --#{bvars.$prefix}badge-border-radius: #{$badge-border-radius};
+  // scss-docs-end badge-css-vars
+
+  display: inline-block;
+  padding: var(--#{bvars.$prefix}badge-padding-y) var(--#{bvars.$prefix}badge-padding-x);
+  @include font-size(var(--#{bvars.$prefix}badge-font-size));
+  font-weight: var(--#{bvars.$prefix}badge-font-weight);
+  line-height: 1;
+  color: var(--#{bvars.$prefix}badge-color);
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  @include border-radius(var(--#{bvars.$prefix}badge-border-radius));
+  @include gradient-bg();
+
+  // Empty badges collapse automatically
+  &:empty {
+    display: none;
+  }
+}
+
+// Quick fix for badges in buttons
+.btn .badge {
+  position: relative;
+  top: -1px;
+}

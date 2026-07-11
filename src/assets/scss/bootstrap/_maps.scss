@@ -1,0 +1,198 @@
+@use "sass:map";
+@use "sass:color";
+@use "sass:meta";
+@use "./functions" as bfn;
+@use "./variables" as bvars;
+@use "./variables-dark" as bdark;
+
+// Re-assigned maps
+//
+// Placed here so that others can override the default Sass maps and see automatic updates to utilities and more.
+
+// scss-docs-start theme-colors-rgb
+$theme-colors-rgb: bfn.map-loop(bvars.$theme-colors, meta.get-function("to-rgb", $module: "bfn"), "$value") !default;
+// scss-docs-end theme-colors-rgb
+
+// scss-docs-start theme-text-map
+$theme-colors-text: (
+  "primary": bvars.$primary-text-emphasis,
+  "secondary": bvars.$secondary-text-emphasis,
+  "success": bvars.$success-text-emphasis,
+  "info": bvars.$info-text-emphasis,
+  "warning": bvars.$warning-text-emphasis,
+  "danger": bvars.$danger-text-emphasis,
+  "light": bvars.$light-text-emphasis,
+  "dark": bvars.$dark-text-emphasis,
+) !default;
+// scss-docs-end theme-text-map
+
+// scss-docs-start theme-bg-subtle-map
+$theme-colors-bg-subtle: (
+  "primary": bvars.$primary-bg-subtle,
+  "secondary": bvars.$secondary-bg-subtle,
+  "success": bvars.$success-bg-subtle,
+  "info": bvars.$info-bg-subtle,
+  "warning": bvars.$warning-bg-subtle,
+  "danger": bvars.$danger-bg-subtle,
+  "light": bvars.$light-bg-subtle,
+  "dark": bvars.$dark-bg-subtle,
+) !default;
+// scss-docs-end theme-bg-subtle-map
+
+// scss-docs-start theme-border-subtle-map
+$theme-colors-border-subtle: (
+  "primary": bvars.$primary-border-subtle,
+  "secondary": bvars.$secondary-border-subtle,
+  "success": bvars.$success-border-subtle,
+  "info": bvars.$info-border-subtle,
+  "warning": bvars.$warning-border-subtle,
+  "danger": bvars.$danger-border-subtle,
+  "light": bvars.$light-border-subtle,
+  "dark": bvars.$dark-border-subtle,
+) !default;
+// scss-docs-end theme-border-subtle-map
+
+$theme-colors-text-dark: null !default;
+$theme-colors-bg-subtle-dark: null !default;
+$theme-colors-border-subtle-dark: null !default;
+
+@if bvars.$enable-dark-mode {
+  // scss-docs-start theme-text-dark-map
+  $theme-colors-text-dark: (
+  "primary": bdark.$primary-text-emphasis-dark,
+  "secondary": bdark.$secondary-text-emphasis-dark,
+  "success": bdark.$success-text-emphasis-dark,
+  "info": bdark.$info-text-emphasis-dark,
+  "warning": bdark.$warning-text-emphasis-dark,
+  "danger": bdark.$danger-text-emphasis-dark,
+  "light": bdark.$light-text-emphasis-dark,
+  "dark": bdark.$dark-text-emphasis-dark,
+  ) !default;
+  // scss-docs-end theme-text-dark-map
+
+  // scss-docs-start theme-bg-subtle-dark-map
+  $theme-colors-bg-subtle-dark: (
+  "primary": bdark.$primary-bg-subtle-dark,
+  "secondary": bdark.$secondary-bg-subtle-dark,
+  "success": bdark.$success-bg-subtle-dark,
+  "info": bdark.$info-bg-subtle-dark,
+  "warning": bdark.$warning-bg-subtle-dark,
+  "danger": bdark.$danger-bg-subtle-dark,
+  "light": bdark.$light-bg-subtle-dark,
+  "dark": bdark.$dark-bg-subtle-dark,
+  ) !default;
+  // scss-docs-end theme-bg-subtle-dark-map
+
+  // scss-docs-start theme-border-subtle-dark-map
+  $theme-colors-border-subtle-dark: (
+  "primary": bdark.$primary-border-subtle-dark,
+  "secondary": bdark.$secondary-border-subtle-dark,
+  "success": bdark.$success-border-subtle-dark,
+  "info": bdark.$info-border-subtle-dark,
+  "warning": bdark.$warning-border-subtle-dark,
+  "danger": bdark.$danger-border-subtle-dark,
+  "light": bdark.$light-border-subtle-dark,
+  "dark": bdark.$dark-border-subtle-dark,
+  ) !default;
+  // scss-docs-end theme-border-subtle-dark-map
+}
+
+$theme-colors-text: if(bvars.$enable-dark-mode, map.deep-merge($theme-colors-text, $theme-colors-text-dark), $theme-colors-text) !default;
+$theme-colors-bg-subtle: if(bvars.$enable-dark-mode, map.deep-merge($theme-colors-bg-subtle, $theme-colors-bg-subtle-dark), $theme-colors-bg-subtle) !default;
+$theme-colors-border-subtle: if(bvars.$enable-dark-mode, map.deep-merge($theme-colors-border-subtle, $theme-colors-border-subtle-dark), $theme-colors-border-subtle) !default;
+
+// scss-docs-start theme-border-subtle-dark-map
+$theme-border-subtle: (
+  "primary": bvars.$primary-border-subtle,
+  "secondary": bvars.$secondary-border-subtle,
+  "success": bvars.$success-border-subtle,
+  "info": bvars.$info-border-subtle,
+  "warning": bvars.$warning-border-subtle,
+  "danger": bvars.$danger-border-subtle,
+  "light": bvars.$light-border-subtle,
+  "dark": bvars.$dark-border-subtle
+) !default;
+// scss-docs-end theme-border-subtle-dark-map
+
+// Utilities maps
+//
+// Extends the default `$theme-colors` maps to help create our utilities.
+
+// Come v6, we'll de-dupe these variables. Until then, for backward compatibility, we keep them to reassign.
+// scss-docs-start utilities-colors
+$utilities-colors: $theme-colors-rgb !default;
+// scss-docs-end utilities-colors
+
+// scss-docs-start utilities-text-colors
+$utilities-text: map.merge(
+  $utilities-colors,
+  (
+    "black": bfn.to-rgb(bvars.$black),
+    "white": bfn.to-rgb(bvars.$white),
+    "body": bfn.to-rgb(bvars.$body-color)
+  )
+) !default;
+$utilities-text-colors: bfn.map-loop($utilities-text, meta.get-function("rgba-css-var", $module: "bfn"), "$key", "text") !default;
+
+$utilities-text-emphasis-colors: (
+  "primary-emphasis": var(--#{bvars.$prefix}primary-text-emphasis),
+  "secondary-emphasis": var(--#{bvars.$prefix}secondary-text-emphasis),
+  "success-emphasis": var(--#{bvars.$prefix}success-text-emphasis),
+  "info-emphasis": var(--#{bvars.$prefix}info-text-emphasis),
+  "warning-emphasis": var(--#{bvars.$prefix}warning-text-emphasis),
+  "danger-emphasis": var(--#{bvars.$prefix}danger-text-emphasis),
+  "light-emphasis": var(--#{bvars.$prefix}light-text-emphasis),
+  "dark-emphasis": var(--#{bvars.$prefix}dark-text-emphasis)
+) !default;
+// scss-docs-end utilities-text-colors
+
+// scss-docs-start utilities-bg-colors
+$utilities-bg: map.merge(
+  $utilities-colors,
+  (
+    "black": bfn.to-rgb(bvars.$black),
+    "white": bfn.to-rgb(bvars.$white),
+    "body": bfn.to-rgb(bvars.$body-bg)
+  )
+) !default;
+$utilities-bg-colors: bfn.map-loop($utilities-bg, meta.get-function("rgba-css-var", $module: "bfn"), "$key", "bg") !default;
+
+$utilities-bg-subtle: (
+  "primary-subtle": var(--#{bvars.$prefix}primary-bg-subtle),
+  "secondary-subtle": var(--#{bvars.$prefix}secondary-bg-subtle),
+  "success-subtle": var(--#{bvars.$prefix}success-bg-subtle),
+  "info-subtle": var(--#{bvars.$prefix}info-bg-subtle),
+  "warning-subtle": var(--#{bvars.$prefix}warning-bg-subtle),
+  "danger-subtle": var(--#{bvars.$prefix}danger-bg-subtle),
+  "light-subtle": var(--#{bvars.$prefix}light-bg-subtle),
+  "dark-subtle": var(--#{bvars.$prefix}dark-bg-subtle)
+) !default;
+// scss-docs-end utilities-bg-colors
+
+// scss-docs-start utilities-border-colors
+$utilities-border: map.merge(
+  $utilities-colors,
+  (
+    "black": bfn.to-rgb(bvars.$black),
+    "white": bfn.to-rgb(bvars.$white)
+  )
+) !default;
+$utilities-border-colors: bfn.map-loop($utilities-border, meta.get-function("rgba-css-var", $module: "bfn"), "$key", "border") !default;
+
+$utilities-border-subtle: (
+  "primary-subtle": var(--#{bvars.$prefix}primary-border-subtle),
+  "secondary-subtle": var(--#{bvars.$prefix}secondary-border-subtle),
+  "success-subtle": var(--#{bvars.$prefix}success-border-subtle),
+  "info-subtle": var(--#{bvars.$prefix}info-border-subtle),
+  "warning-subtle": var(--#{bvars.$prefix}warning-border-subtle),
+  "danger-subtle": var(--#{bvars.$prefix}danger-border-subtle),
+  "light-subtle": var(--#{bvars.$prefix}light-border-subtle),
+  "dark-subtle": var(--#{bvars.$prefix}dark-border-subtle)
+) !default;
+// scss-docs-end utilities-border-colors
+
+$utilities-links-underline: bfn.map-loop($utilities-colors, meta.get-function("rgba-css-var", $module: "bfn"), "$key", "link-underline") !default;
+
+$negative-spacers: if(bvars.$enable-negative-margins, negativify-map(bvars.$spacers), null) !default;
+
+$gutters: bvars.$spacers !default;

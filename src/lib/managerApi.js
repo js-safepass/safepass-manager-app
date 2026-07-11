@@ -38,6 +38,14 @@ export function isMutating(method) {
   return mutatingMethods.has(method.toUpperCase());
 }
 
+// 403/404 both read as "not yours to see" (tenant-safe 404s are deliberate
+// anti-leak behavior). Polling loops halt on these instead of retrying into
+// a wall — same contract as sentinel-ui's datamanager/helpers.js.
+export function isPermissionError(err) {
+  const status = err?.status;
+  return status === 403 || status === 404;
+}
+
 function normalizeBaseUrl(baseUrl) {
   if (!baseUrl) return '';
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

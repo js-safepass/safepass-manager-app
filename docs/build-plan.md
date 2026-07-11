@@ -108,23 +108,30 @@ Per `HANDOFF-BOOTSTRAP.md` steps 1–3:
 
 **Exit:** app boots against mock; lint/tests/build green; CLAUDE.md placeholder-free.
 
-## Phase 0.5 — UI foundation port from sentinel-ui
+## Phase 0.5 — UI foundation port from sentinel-ui ✅ (shipped 2026-07-10)
 
-Before any real screens: port the design system so every subsequent screen is
-built once, in the house style.
+Ported so every subsequent screen is built once, in the house style:
 
-- Deps: `react-bootstrap` + `bootstrap`, `sass`, DM Sans, FontAwesome 6 Free.
-- Copy the SCSS tree from sentinel-ui `src/assets/scss/` preserving the
-  datum → custom → customizer import order (customizer loads last and wins).
-- Port core components: `SectionCard`, `SimpleTable`, `RowActions`,
-  `PageHeader`, `ConfirmModal`, flash provider (`useFlash` cadence:
-  success 6s / info 8s / warning 10s / error 12s), loading/empty-state
-  conventions. `CursorList` + `useListQuery` come with the first list screen.
-- Copy domain libs with tests: `statusVariants.js`, `visitHelpers.js`,
-  `useScopedPolling.js`; adapt `accessPolicy.js` to this app's allowlist.
-- Risk to verify early: react-bootstrap on React 19 (sentinel-ui is React 18).
-  If it fights, pinning React 18 here is acceptable — flag it as a deviation
-  from the chassis' React 19 line before doing so.
+- SCSS theme tree copied verbatim (datum → custom → customizer import order;
+  Bootstrap source is bundled in-tree so no `bootstrap` npm dep). Deviations
+  from upstream, deliberate: DM Sans self-hosted via `@fontsource` (CSP has
+  no external style/font sources; on-prem goal) replacing the Google Fonts
+  `@import`; Bootstrap's `tests/` scaffolding dropped; named Sass
+  deprecations silenced in `vite.config.js` (upstream tech debt — migrate in
+  sentinel-ui first, then re-port).
+- FontAwesome 6 Free imported explicitly (`all.min.css`) — sentinel-ui lists
+  the dep but no import was found there; classes follow its `fas fa-*` docs.
+- Components ported: `Card`, `SectionCard`, `ConfirmModal` (+
+  `useConfirmModal`), `RowActions`, `FlashOverlay` + `flashProvider`
+  (`useFlash`). `SimpleTable`/`CursorList`/`PageHeader` deferred — they
+  depend on session/scope providers and the router (Phase 1+).
+- Domain libs copied: `statusVariants.js` (+test), `visitHelpers.js` (+
+  `format/datetime.js`), `useScopedPolling.js` (one-line adapt:
+  `isPermissionError` now exported from `managerApi.js`). `accessPolicy.js`
+  adaptation deferred to Phase 1 (wires into the API seam).
+- react-bootstrap 2.10 runs on React 19 — no pin-back needed.
+- Login/Home restyled on the system; lint/tests/build fully clean (zero
+  warnings — user requirement).
 
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 

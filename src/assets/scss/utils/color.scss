@@ -1,0 +1,21 @@
+@use "sass:color";
+
+// Centralized helpers to avoid deprecated color functions
+
+// Lighten/darken by percentage of lightness
+@function lighten-pct($c, $pct) {
+  @return color.scale($c, $lightness: $pct);
+}
+
+@function darken-pct($c, $pct) {
+  @return color.scale($c, $lightness: -$pct);
+}
+
+// Mix toward white/black by percentage
+@function tint($c, $pct) {
+  @return color.mix(white, $c, $weight: $pct);
+}
+
+@function shade($c, $pct) {
+  @return color.mix(black, $c, $weight: $pct);
+}
