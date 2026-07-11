@@ -3,6 +3,7 @@ import { Col, Row } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import SectionCard from '../components/SectionCard.jsx';
 import { useApi } from '../state/useApi.js';
+import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
 import { useScopedPolling } from '../lib/useScopedPolling.js';
 import { formatDateTime } from '../lib/format/datetime.js';
@@ -20,13 +21,14 @@ const TILES = [
 // re-check when the backend freezes the metrics group.
 export default function Dashboard() {
   const api = useApi();
+  const { activeOrgId } = useSession();
   const { notifications, unreadCount } = useNotifications();
   const [metrics, setMetrics] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await api.getMetrics({ presets: 'visitors,ops' });
+    const res = await api.getMetrics({ presets: 'visitors,ops', org_id: activeOrgId });
     setMetrics(res?.data || null);
-  }, [api]);
+  }, [api, activeOrgId]);
 
   useEffect(() => {
     load().catch(() => {});

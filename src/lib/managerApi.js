@@ -91,7 +91,13 @@ function withQuery(path, params) {
 
 export function createManagerApi({
   baseUrl,
+  // May be async: the auth layer refreshes a stale token before returning it
+  // (AuthContext.getFreshAccessToken).
   getAccessToken,
+  // Called once per 401 response before the error throws — the app signs the
+  // user out here so every screen inherits re-auth behavior from the seam
+  // instead of hand-rolling it.
+  onUnauthorized,
   // Deferred DPoP seam (decision #5 in docs/build-plan.md): when the backend
   // grows a manager-surface sender-constrained session, wire a proof builder
   // here — `attachProof({ method, url, bearer })` returning the DPoP header
@@ -115,7 +121,7 @@ export function createManagerApi({
       headers.set('Content-Type', 'application/json');
     }
 
-    const bearer = getAccessToken?.();
+    const bearer = await getAccessToken?.();
     if (!bearer) {
       // In-memory token is gone (page refresh, expiry) — callers route this
       // to re-auth via getUserFacingError / the auth context.
@@ -156,6 +162,18 @@ export function createManagerApi({
     if (response.ok) return payload;
 
     const { code, message } = parseErrorPayload(payload);
+
+    // Authoritative 401: the token is no longer valid and any refresh
+    // already ran inside getAccessToken — hand control to the auth layer,
+    // then throw normally.
+    if (response.status === 401) {
+      try {
+        onUnauthorized?.();
+      } catch {
+        // The sign-out hook must never mask the original error.
+      }
+    }
+
     const retryAfterHeader = response.headers.get('Retry-After');
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
     throw new ManagerApiError(message || `Request failed with ${response.status}`, {

@@ -33,3 +33,27 @@ test('buildLogoutUrl targets the bridge logout endpoint', async () => {
   expect(url.pathname).toBe('/logout');
   expect(url.searchParams.get('client_id')).toBe('5grgviekbiv44ab9llnsdqnp55');
 });
+
+test('refreshTokens posts the refresh grant to the bridge token endpoint', async () => {
+  const { refreshTokens } = await import('./cognitoHostedUi.js');
+  const originalFetch = globalThis.fetch;
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = { url, body: init.body.toString() };
+    return new Response(JSON.stringify({ access_token: 'new_at' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const payload = await refreshTokens({ refreshToken: 'rt_1' });
+    expect(payload.access_token).toBe('new_at');
+    expect(captured.url).toBe('https://auth.safepass.com/oauth2/token');
+    const params = new URLSearchParams(captured.body);
+    expect(params.get('grant_type')).toBe('refresh_token');
+    expect(params.get('client_id')).toBe('5grgviekbiv44ab9llnsdqnp55');
+    expect(params.get('refresh_token')).toBe('rt_1');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

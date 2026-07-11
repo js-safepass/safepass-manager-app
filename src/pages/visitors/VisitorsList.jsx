@@ -5,6 +5,7 @@ import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import VisitorFormModal from './VisitorFormModal.jsx';
 import { useApi } from '../../state/useApi.js';
+import { useSession } from '../../state/useSession.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
 
 // Visitor directory: server-filtered, keyset-paginated (opaque meta.cursor;
@@ -12,6 +13,7 @@ import { getUserFacingError } from '../../lib/userErrors.js';
 // the cursor and restart the walk, per the pagination contract.
 export default function VisitorsList() {
   const api = useApi();
+  const { activeOrgId } = useSession();
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -27,7 +29,7 @@ export default function VisitorsList() {
     setError(null);
     try {
       const page = await api.listVisitors({
-        org_id: 'org_001',
+        org_id: activeOrgId,
         limit: 15,
         name: filters.name || undefined,
         status: filters.status || undefined,
@@ -40,7 +42,7 @@ export default function VisitorsList() {
     } finally {
       setBusy(false);
     }
-  }, [api, filters]);
+  }, [api, activeOrgId, filters]);
 
   useEffect(() => {
     load();

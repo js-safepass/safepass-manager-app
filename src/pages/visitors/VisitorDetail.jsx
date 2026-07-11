@@ -5,6 +5,7 @@ import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import VisitorFormModal from './VisitorFormModal.jsx';
 import { useApi } from '../../state/useApi.js';
+import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
@@ -27,6 +28,7 @@ function FieldRow({ label, children }) {
 export default function VisitorDetail() {
   const { visitorId } = useParams();
   const api = useApi();
+  const { activeOrgId } = useSession();
   const flash = useFlash();
   const navigate = useNavigate();
   const [visitor, setVisitor] = useState(null);
@@ -42,7 +44,7 @@ export default function VisitorDetail() {
     try {
       const [v, vs] = await Promise.all([
         api.getVisitor(visitorId),
-        api.listVisits({ visitor_id: visitorId, limit: 20 }),
+        api.listVisits({ org_id: activeOrgId, visitor_id: visitorId, limit: 20 }),
       ]);
       setVisitor(v?.data || null);
       setVisits(vs?.data || []);
@@ -51,7 +53,7 @@ export default function VisitorDetail() {
     } finally {
       setLoading(false);
     }
-  }, [api, visitorId]);
+  }, [api, activeOrgId, visitorId]);
 
   useEffect(() => {
     load();
@@ -62,7 +64,9 @@ export default function VisitorDetail() {
   const checkIn = async () => {
     setCheckingIn(true);
     try {
-      await api.checkin(visitorId, {});
+      // org_id in the body per the check-in contract (sentinel-ui
+      // process-flows: all create/confirm/check-in calls send org_id).
+      await api.checkin(visitorId, { org_id: activeOrgId });
       flash.success(`Check-in started for ${visitor.first_name} ${visitor.last_name}.`);
       navigate('/visits');
     } catch (err) {

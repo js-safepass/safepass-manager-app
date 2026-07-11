@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './state/useAuth.js';
 import { ApiProvider } from './state/ApiContext.jsx';
+import { SessionProvider } from './state/SessionContext.jsx';
 import { NotificationsProvider } from './state/NotificationsContext.jsx';
 import FlashOverlay from './components/FlashOverlay.jsx';
+import SessionGate from './components/SessionGate.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -29,10 +31,12 @@ export default function App() {
 
   return (
     <ApiProvider>
-      <NotificationsProvider>
-        <BrowserRouter>
-          <FlashOverlay />
-          <Routes>
+      <SessionProvider>
+        <SessionGate>
+          <NotificationsProvider>
+            <BrowserRouter>
+              <FlashOverlay />
+              <Routes>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/visitors" element={<VisitorsList />} />
@@ -41,9 +45,11 @@ export default function App() {
               <Route path="/notifications" element={<NotificationsInbox />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
-          </Routes>
-        </BrowserRouter>
-      </NotificationsProvider>
+              </Routes>
+            </BrowserRouter>
+          </NotificationsProvider>
+        </SessionGate>
+      </SessionProvider>
     </ApiProvider>
   );
 }

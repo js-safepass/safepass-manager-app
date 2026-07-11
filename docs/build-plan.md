@@ -146,10 +146,21 @@ detail with gate-failure surfacing (428 review, 409 already-in). Mock
 simulates the async badge pipeline so `checking_in → active → encoded_ready`
 progresses live on screen.
 
-Still open from the phases below: real auth bootstrap (whoami/scopes session
-+ scope selector + token refresh), station picker on check-in, host attach,
-visit scheduling, SSE notifications, dashboards beyond tiles, tracking map,
-photos + bulk import, native shells.
+**Live-token wiring ✅ (2026-07-10, same branch):** real sign-in now drives
+the app end-to-end — SessionProvider bootstraps `/v1/whoami` (+ tolerant
+provisional `/v1/auth/scopes`), reconciles the persisted org selection
+(`safepass.activeOrgId`), and gates the shell with loading / no-access /
+error states; every API call is org-scoped from the session (no hardcoded
+org ids); silent token refresh via the bridge refresh grant (deduped, 30s
+early-skew) with authoritative 401 → sign-out at the managerApi seam; sign
+out ends the Hosted UI session too. Mode matrix documented in `.env.example`
+— mock stays a build var (`VITE_MANAGER_MOCK`), auth bypass separately
+(`VITE_MODE=dev`), so real-auth+mock-data is a supported testing posture.
+
+Still open from the phases below: org/sub-scope *selector UI* (session holds
+the state; multi-org users get first-org default today), station picker on
+check-in, host attach, visit scheduling, SSE notifications, dashboards
+beyond tiles, tracking map, photos + bulk import, native shells.
 
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 

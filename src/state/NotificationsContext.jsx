@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from './useApi.js';
+import { useSession } from './useSession.js';
 import { useScopedPolling } from '../lib/useScopedPolling.js';
 import { NotificationsContext } from './useNotifications.js';
 
@@ -13,12 +14,13 @@ import { NotificationsContext } from './useNotifications.js';
 // sentinel-ui convention.
 export function NotificationsProvider({ children }) {
   const api = useApi();
+  const { activeOrgId } = useSession();
   const [notifications, setNotifications] = useState([]);
 
   const load = useCallback(async () => {
-    const page = await api.listNotifications({ limit: 50 });
+    const page = await api.listNotifications({ org_id: activeOrgId, limit: 50 });
     setNotifications(page?.data || []);
-  }, [api]);
+  }, [api, activeOrgId]);
 
   // Initial load now; useScopedPolling's first tick is one interval out.
   useEffect(() => {

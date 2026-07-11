@@ -5,6 +5,7 @@ import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import RowActions from '../../components/RowActions.jsx';
 import { useApi } from '../../state/useApi.js';
+import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { useScopedPolling } from '../../lib/useScopedPolling.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
@@ -26,6 +27,7 @@ function badgeStatus(v) {
 // checking_in → active and the badge pipeline progress live on screen.
 export default function VisitsList() {
   const api = useApi();
+  const { activeOrgId } = useSession();
   const flash = useFlash();
   const [rows, setRows] = useState([]);
   const [visitorsById, setVisitorsById] = useState({});
@@ -37,6 +39,7 @@ export default function VisitsList() {
     if (!quiet) setLoading(true);
     try {
       const page = await api.listVisits({
+        org_id: activeOrgId,
         limit: 30,
         status: statusFilter || undefined,
         expand: 'visitor',
@@ -49,7 +52,7 @@ export default function VisitsList() {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [api, statusFilter]);
+  }, [api, activeOrgId, statusFilter]);
 
   useEffect(() => {
     load();

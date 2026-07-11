@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import { useApi } from '../../state/useApi.js';
+import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
 
@@ -12,6 +13,7 @@ const EMPTY = { first_name: '', last_name: '', email: '', phone: '', company: ''
 // own phases.
 export default function VisitorFormModal({ show, visitor, onClose, onSaved }) {
   const api = useApi();
+  const { activeOrgId } = useSession();
   const flash = useFlash();
   const isEdit = Boolean(visitor?.id);
   const [fields, setFields] = useState(EMPTY);
@@ -43,7 +45,7 @@ export default function VisitorFormModal({ show, visitor, onClose, onSaved }) {
     try {
       const saved = isEdit
         ? await api.updateVisitor(visitor.id, payload, { ifMatch: visitor.version })
-        : await api.createVisitor(payload);
+        : await api.createVisitor({ ...payload, org_id: activeOrgId });
       flash.success(isEdit ? 'Visitor updated.' : 'Visitor created.');
       onSaved?.(saved?.data);
       onClose();

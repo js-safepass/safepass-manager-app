@@ -27,7 +27,7 @@ const Login = () => {
 
   useEffect(() => {
     if (window.location.pathname === '/auth/logout') {
-      signOut();
+      signOut({ hosted: false }); // already past the hosted logout redirect
       window.history.replaceState({}, document.title, '/');
     }
   }, [signOut]);
@@ -71,7 +71,7 @@ const Login = () => {
         if (!accessToken) {
           throw new Error('Token response missing access token.');
         }
-        await signIn({ token: accessToken });
+        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
       } catch (exchangeError) {
         setLocalError(getUserFacingError(exchangeError, 'signIn'));
       } finally {
@@ -131,7 +131,7 @@ const Login = () => {
         if (!accessToken) {
           throw new Error('Token response missing access token.');
         }
-        await signIn({ token: accessToken });
+        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
       } catch (err) {
         setLocalError(getUserFacingError(err, 'signIn'));
       } finally {

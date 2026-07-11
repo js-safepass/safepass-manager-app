@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, Offcanvas } from 'react-bootstrap';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
-import { useApi } from '../state/useApi.js';
+import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
 
 const NAV_ITEMS = [
@@ -46,22 +46,9 @@ function SidebarBrand() {
 // --safepass-primary-dark navy, white-on-8%-white active state).
 export default function AppLayout() {
   const { signOut } = useAuth();
-  const api = useApi();
-  const [scopeLabel, setScopeLabel] = useState('');
+  const { scopeLabel } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
-
-  useEffect(() => {
-    let cancelled = false;
-    api.whoami()
-      .then((who) => {
-        if (!cancelled) setScopeLabel(who?.data?.scope_label || '');
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
 
   // Close the mobile drawer on navigation.
   useEffect(() => {
