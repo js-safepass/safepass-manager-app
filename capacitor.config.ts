@@ -4,7 +4,9 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // via `CAP_SERVER_URL=...` for staging / preview / local-dev builds. The iOS
 // build phase script at ios/scripts/select-server-url.sh wires this up
 // automatically based on the active Xcode configuration (Debug vs Release).
-const serverUrl = process.env.CAP_SERVER_URL || 'https://manage.safepass.com';
+// workers.dev origin until manage.safepass.com DNS lands (changing this is
+// one of the few things that requires a native rebuild — D1).
+const serverUrl = process.env.CAP_SERVER_URL || 'https://safepass-manager-app.jonathan-sargent.workers.dev';
 
 const config: CapacitorConfig = {
   appId: 'com.safepass.manager',
@@ -24,7 +26,7 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: {
       // Disabled — with server.url set, the WebView loads from the real
-      // https://manage.safepass.com origin and CORS works natively against
+      // the real hosted https origin and CORS works natively against
       // api.safepass.com, auth.safepass.com, and S3. No native HTTP bridge needed.
       // NOTE: CapacitorHttp MUST be disabled when using server.url because its
       // GET proxy rewrites URLs to the server hostname, hitting the real server
