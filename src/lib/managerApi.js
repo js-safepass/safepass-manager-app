@@ -235,15 +235,12 @@ export function createManagerApi({
       managerFetch({ method: 'GET', path: withQuery(`/v1/visits/${visitId}`, params) }),
     createVisit: (payload, { idempotencyKey } = {}) =>
       managerFetch({ method: 'POST', path: '/v1/visits', body: payload, idempotencyKey }),
-    updateVisit: (visitId, payload, { ifMatch } = {}) =>
-      managerFetch(
-        { method: 'PATCH', path: `/v1/visits/${visitId}`, body: payload },
-        { ifMatch },
-      ),
-    // Note: sentinel-ui's CheckInModal/useVisitFlow also use
-    // POST /v1/visits/{id}/confirm (with check_cleared for background-check
-    // orgs). That path is NOT in the contractor OpenAPI subset — confirm with
-    // backend that it belongs on this app's allowlist before Phase 3.
+    // No updateVisit: PATCH /v1/visits/{id} is not a registered backend
+    // route and is not on this app's policy — visit changes happen through
+    // the lifecycle actions below (backend decision "remove, don't build",
+    // 2026-07-12).
+    // confirmVisit confirmed allowed under the manager app policy
+    // (backend app-client authorization gate, verified 2026-07-12).
     confirmVisit: (visitId, payload = {}) =>
       managerFetch({ method: 'POST', path: `/v1/visits/${visitId}/confirm`, body: payload }),
     checkoutVisit: (visitId, payload = {}) =>
@@ -568,12 +565,6 @@ export function createMockManagerApi() {
       };
       visits.unshift(visit);
       return { data: visit };
-    },
-    updateVisit: async (visitId, payload) => {
-      const found = visits.find((v) => v.id === visitId);
-      if (!found) throw notFound('NOT_FOUND');
-      Object.assign(found, payload, { version: found.version + 1, updated_at: new Date().toISOString() });
-      return { data: stripInternal(found) };
     },
     confirmVisit: async (visitId) => {
       const found = visits.find((v) => v.id === visitId);

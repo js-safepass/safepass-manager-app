@@ -83,6 +83,10 @@ staging project if preview URLs are wanted per PR.
 - [ ] Backend CORS: allow the two hosted origins (and `http://localhost:5273`
       for dev) on the staging (`safepass-api.forgearray.dev`) and production
       DataManager
+- [ ] Backend audience switch per environment (backend team): the app-client
+      authorization gate rejects this client's tokens (401 on whoami) until
+      `COGNITO_MANAGER_AUDIENCE` is set — `4diu3cb4nnt78al45dv5r8iqu9` on
+      staging, `5grgviekbiv44ab9llnsdqnp55` on production
 - [ ] After first staging deploy: sign in end-to-end on the staging URL
 
 ## Release flow (day to day)

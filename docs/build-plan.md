@@ -59,11 +59,18 @@ for everything above the chassis**:
   net (the guide's "SSE deprecated" §6 is stale — code wins).
 
 **Discrepancies to confirm with backend** (dated confirmations go in code
-comments when resolved): `POST /v1/visits/{id}/confirm` is used by sentinel-ui
-but absent from the contractor OpenAPI subset; sentinel-ui bootstraps
-`GET /v1/me` while the subset lists `/users/me`; token refresh — sentinel-ui
-uses OIDC silent refresh, the chassis re-runs the auth flow on expiry (an
-all-day attended app needs refresh; decide the mechanism in Phase 1).
+comments when resolved): ~~`POST /v1/visits/{id}/confirm`~~ resolved
+2026-07-12 — allowed under this app's backend policy (see CLAUDE.md
+"Backend app-client authorization gate"); sentinel-ui bootstraps
+`GET /v1/me` while the subset lists `/users/me`; token refresh — resolved
+2026-07-10 (silent refresh via the bridge refresh grant, in AuthContext).
+
+**Backend app-client gate (implemented 2026-07-12):** deny-by-default
+per-client policy is live server-side; this app's policy ("G") allows its
+whole current call surface and deliberately excludes visitor delete, photo
+listing, bulk template, badge-swipes, and devices reads — full detail in
+CLAUDE.md. Enablement per environment via the backend's
+`COGNITO_MANAGER_AUDIENCE` switch.
 
 ## Decisions inherited (do not re-litigate)
 
