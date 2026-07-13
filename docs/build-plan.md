@@ -72,6 +72,20 @@ listing, bulk template, badge-swipes, and devices reads — full detail in
 CLAUDE.md. Enablement per environment via the backend's
 `COGNITO_MANAGER_AUDIENCE` switch.
 
+**Ported from the mapping app (2026-07-13):** (a) auth resilience — shared
+defensive token-endpoint POST (non-JSON gateway errors surface HTTP status),
+`freshToken.js` refresh provider (dedupe, 10s throttle, rotation, race guard,
+NON-terminal failure), threshold-gated 401 sign-out in AuthContext (2 in 120s;
+never on a still-valid token — that's authz/config), one-shot forced-refresh
+401 retry at the managerApi seam replaying the same Idempotency-Key; (b)
+native OAuth is now the LIVE-WEB-VIEW in-place flow — no in-app browser, no
+`safepassmanager://` scheme (redirect URIs default to
+`window.location.origin`); (c) scope drill-down — `scopeHierarchy.js` (pure,
+verbatim) + `/scope` ScopePicker: org (from session) → division → location →
+building (terminal — no floors here), auto-select-single above building,
+clickable breadcrumb, cursor-drained list fetches, selection persisted per-org
+(`safepass.scope.<orgId>`).
+
 ## Decisions inherited (do not re-litigate)
 
 Per `HANDOFF-DECISIONS.md`: JS not TS (D3), hosted `server.url` Capacitor model (D1),

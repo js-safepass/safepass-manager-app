@@ -105,7 +105,7 @@ docs/               design docs & plans — check the Status header; see docs/RE
 ## Auth & infra reference
 
 - Cognito Hosted UI via the `auth.safepass.com` bridge → AWS GovCloud Cognito. Pool `us-gov-west-1_jpRl7DoR5`, app client `5grgviekbiv44ab9llnsdqnp55`.
-- Native OAuth: in-app browser + `safepassmanager://localhost/auth/callback` deep link.
+- Native OAuth: the shell is a LIVE web view (`server.url` = hosted origin), so OAuth navigates the web view in-place through the Hosted UI and back to `<origin>/auth/callback` — no in-app browser, no custom URL scheme (2026-07-13). Redirect/logout URIs default to `window.location.origin`; the `VITE_COGNITO_*_URI` vars are overrides only.
 - API base: `https://api.safepass.com`; this client is scoped to the `x-apps: visitor` + `shared` operations in `docs/contractor-handoff/3-api-spec.yaml`.
 - Env surface: all runtime config is `VITE_*` via `.env*` files (see `.env.example`); never a secret in a `VITE_` var. `VITE_MODE=dev` = auth bypass; `VITE_MANAGER_MOCK=true` = mock API (app must stay fully drivable with no backend).
 - Dev server is pinned to port **5273** (`strictPort` — OAuth callbacks are registered for `localhost:5273`; other local projects hold 5173).

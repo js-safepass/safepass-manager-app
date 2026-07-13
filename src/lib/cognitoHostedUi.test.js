@@ -57,3 +57,18 @@ test('refreshTokens posts the refresh grant to the bridge token endpoint', async
     globalThis.fetch = originalFetch;
   }
 });
+
+test('a non-JSON gateway error surfaces the HTTP status, not a SyntaxError', async () => {
+  const { refreshTokens } = await import('./cognitoHostedUi.js');
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response('<html>502 Bad Gateway</html>', {
+      status: 502,
+      headers: { 'content-type': 'text/html' },
+    });
+  try {
+    await expect(refreshTokens({ refreshToken: 'rt_1' })).rejects.toThrow(/HTTP 502/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

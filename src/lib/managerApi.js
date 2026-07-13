@@ -107,11 +107,24 @@ export function createManagerApi({
   const root = normalizeBaseUrl(baseUrl);
 
   async function managerFetch(req, options = {}) {
-    const { method, path, body, idempotencyKey } = req;
+    const { method, path } = req;
     if (!path.startsWith('/v1/')) {
       throw new Error(`API path must start with /v1/: ${path}`);
     }
+    // Resolve the Idempotency-Key ONCE per logical request, outside the
+    // attempt loop: the one-shot 401 retry below must replay with the SAME
+    // key or the backend would treat it as a second, distinct mutation.
+    const idempotencyKey = isMutating(method)
+      ? (req.idempotencyKey || crypto.randomUUID())
+      : null;
+    return attempt(req, options, idempotencyKey, false);
+  }
 
+  // `retried` guards the one-shot 401 refresh-then-retry (recursion, not a
+  // loop): a 401 forces a token refresh and re-attempts once; a second 401
+  // hands off to onUnauthorized.
+  async function attempt(req, options, idempotencyKey, retried) {
+    const { method, path, body } = req;
     const url = `${root}${path}`;
     const headers = new Headers();
     const requestId = crypto.randomUUID();
@@ -121,7 +134,21 @@ export function createManagerApi({
       headers.set('Content-Type', 'application/json');
     }
 
-    const bearer = await getAccessToken?.();
+    // getAccessToken may be async (a stale token silently refreshes inside
+    // it). Refresh failure is non-terminal there — it resolves to the best
+    // token held — so an accessor THROW here is an unexpected fault (a
+    // provider bug, or literally no session). Surface the app's auth error
+    // but keep the real cause for flattenErrorForLog.
+    let bearer;
+    try {
+      bearer = await getAccessToken?.();
+    } catch (accessorError) {
+      throw new ManagerApiError('Sign-in required', {
+        code: 'UNAUTHORIZED',
+        status: 401,
+        details: { cause: accessorError },
+      });
+    }
     if (!bearer) {
       // In-memory token is gone (page refresh, expiry) — callers route this
       // to re-auth via getUserFacingError / the auth context.
@@ -132,10 +159,10 @@ export function createManagerApi({
     }
     headers.set('Authorization', `Bearer ${bearer}`);
 
-    // Mutations always carry an Idempotency-Key (auto-generated unless the
-    // caller supplies one to span an explicit retry loop).
-    if (isMutating(method)) {
-      headers.set('Idempotency-Key', idempotencyKey || crypto.randomUUID());
+    // Mutations always carry an Idempotency-Key (resolved once in
+    // managerFetch so a 401 retry replays the same key).
+    if (idempotencyKey) {
+      headers.set('Idempotency-Key', idempotencyKey);
     }
 
     // Version concurrency: If-Match carries the resource's integer `version`
@@ -161,11 +188,27 @@ export function createManagerApi({
 
     if (response.ok) return payload;
 
+    // A 401 can straddle expiry (clock skew) or hit a token the silent
+    // refresh hadn't rotated yet. Before treating it as terminal, force ONE
+    // refresh and retry if that actually yields a different token — mirrors
+    // sentinel-ui's fetchWithAuth. If the token doesn't change (e.g. the
+    // backend is rejecting a valid token), fall through to onUnauthorized.
+    if (response.status === 401 && !retried && getAccessToken) {
+      let refreshed = null;
+      try {
+        refreshed = await getAccessToken({ forceRefresh: true });
+      } catch {
+        refreshed = null;
+      }
+      if (refreshed && refreshed !== bearer) {
+        return attempt(req, options, idempotencyKey, true);
+      }
+    }
+
     const { code, message } = parseErrorPayload(payload);
 
-    // Authoritative 401: the token is no longer valid and any refresh
-    // already ran inside getAccessToken — hand control to the auth layer,
-    // then throw normally.
+    // Notify the auth owner so it can decide (threshold-gated) whether the
+    // session is dead. Pollers must stop on 401 (brief §5).
     if (response.status === 401) {
       try {
         onUnauthorized?.();
@@ -623,9 +666,20 @@ export function createMockManagerApi() {
       ],
       meta: { limit: 50 },
     }),
-    listDivisions: async () => ({ data: [{ id: 'div_001', name: 'Operations' }], meta: { limit: 50 } }),
-    listLocations: async () => ({ data: [{ id: 'loc_001', name: 'Reno' }], meta: { limit: 50 } }),
-    listBuildings: async () => ({ data: [{ id: 'bld_001', name: 'Main Lobby' }], meta: { limit: 50 } }),
+    // Scope hierarchy with real parent-key linkage (mirrors the mapping
+    // app's mock seed): one division + one location (both AUTO-SELECT in the
+    // scope drill) -> two buildings (a real choice). Exercises the
+    // auto-select-single-above-building behavior end to end in mock mode.
+    listDivisions: async (orgId, params) => paginate([
+      { id: 'div_ops', organization_id: org.id, parent_division_id: null, name: 'Operations', status: 'active', version: 1 },
+    ], params),
+    listLocations: async (orgId, params) => paginate([
+      { id: 'loc_reno', organization_id: org.id, division_id: 'div_ops', name: 'Reno Campus', status: 'active', timezone: 'America/Los_Angeles', version: 1 },
+    ], params),
+    listBuildings: async (orgId, params) => paginate([
+      { id: 'bld_hq', organization_id: org.id, division_id: 'div_ops', location_id: 'loc_reno', name: 'Headquarters', status: 'active', timezone: 'America/Los_Angeles', version: 1 },
+      { id: 'bld_annex', organization_id: org.id, division_id: 'div_ops', location_id: 'loc_reno', name: 'North Annex', status: 'active', timezone: 'America/Los_Angeles', version: 1 },
+    ], params),
 
     listHostContacts: async () => ({ data: [], meta: { limit: 50 } }),
     suggestHostContacts: async () => ({ data: [] }),
