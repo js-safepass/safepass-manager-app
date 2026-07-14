@@ -59,11 +59,32 @@ for everything above the chassis**:
   net (the guide's "SSE deprecated" §6 is stale — code wins).
 
 **Discrepancies to confirm with backend** (dated confirmations go in code
-comments when resolved): `POST /v1/visits/{id}/confirm` is used by sentinel-ui
-but absent from the contractor OpenAPI subset; sentinel-ui bootstraps
-`GET /v1/me` while the subset lists `/users/me`; token refresh — sentinel-ui
-uses OIDC silent refresh, the chassis re-runs the auth flow on expiry (an
-all-day attended app needs refresh; decide the mechanism in Phase 1).
+comments when resolved): ~~`POST /v1/visits/{id}/confirm`~~ resolved
+2026-07-12 — allowed under this app's backend policy (see CLAUDE.md
+"Backend app-client authorization gate"); sentinel-ui bootstraps
+`GET /v1/me` while the subset lists `/users/me`; token refresh — resolved
+2026-07-10 (silent refresh via the bridge refresh grant, in AuthContext).
+
+**Backend app-client gate (implemented 2026-07-12):** deny-by-default
+per-client policy is live server-side; this app's policy ("G") allows its
+whole current call surface and deliberately excludes visitor delete, photo
+listing, bulk template, badge-swipes, and devices reads — full detail in
+CLAUDE.md. Enablement per environment via the backend's
+`COGNITO_MANAGER_AUDIENCE` switch.
+
+**Ported from the mapping app (2026-07-13):** (a) auth resilience — shared
+defensive token-endpoint POST (non-JSON gateway errors surface HTTP status),
+`freshToken.js` refresh provider (dedupe, 10s throttle, rotation, race guard,
+NON-terminal failure), threshold-gated 401 sign-out in AuthContext (2 in 120s;
+never on a still-valid token — that's authz/config), one-shot forced-refresh
+401 retry at the managerApi seam replaying the same Idempotency-Key; (b)
+native OAuth is now the LIVE-WEB-VIEW in-place flow — no in-app browser, no
+`safepassmanager://` scheme (redirect URIs default to
+`window.location.origin`); (c) scope drill-down — `scopeHierarchy.js` (pure,
+verbatim) + `/scope` ScopePicker: org (from session) → division → location →
+building (terminal — no floors here), auto-select-single above building,
+clickable breadcrumb, cursor-drained list fetches, selection persisted per-org
+(`safepass.scope.<orgId>`).
 
 ## Decisions inherited (do not re-litigate)
 

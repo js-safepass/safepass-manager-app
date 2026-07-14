@@ -61,7 +61,7 @@ If you skip Layer 2: authenticate API calls with the Cognito access token as a p
 | App client ID | `5grgviekbiv44ab9llnsdqnp55` (2026-07-10) | *(create)* |
 | Dev port | `5273` (pinned, strictPort — register `http://localhost:5273/auth/*` callbacks, not 5173) | *(pick a dedicated port)* |
 | Hostname | `manage.safepass.com` | *(e.g. `siteconfig.safepass.com`)* |
-| Deep-link scheme | `safepassmanager://` | *(e.g. `safepasssiteconfig://`)* |
+| Deep-link scheme | not used — OAuth runs in-place in the live web view (2026-07-13) | *(e.g. `safepasssiteconfig://`)* |
 | Layer 2? | **no** (attended, personal login; DPoP planned via managerApi `attachProof` seam when backend supports it) | likely **no** — confirm |
 | Self-update polling ([D9](DECISIONS.md#d9))? | **yes** — staff tablets/PCs sit open all day | only if left running unattended |
 

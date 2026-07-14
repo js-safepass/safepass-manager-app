@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Container, Row, Spinner } from 'react-bootstrap';
 import AuthBrand from '../components/AuthBrand.jsx';
 import { useAuth } from '../state/useAuth.js';
 import { buildAuthorizeUrl, exchangeCodeForToken } from '../lib/cognitoHostedUi.js';
 import { generateCodeChallenge, generateCodeVerifier } from '../lib/pkce.js';
 import { getUserFacingError } from '../lib/userErrors.js';
-import { isNative } from '../lib/platform.js';
 
 const storageKeys = {
   verifier: 'manager_pkce_verifier',
@@ -15,15 +14,19 @@ const storageKeys = {
 // Staff sign-in for the SafePass Manager app.
 // Uses Cognito Hosted UI + PKCE and keeps tokens in memory only.
 //
-// On native (Capacitor), OAuth opens in an in-app browser (SFSafariViewController /
-// Chrome Custom Tabs) and the callback arrives via the registered URL scheme
-// (safepassmanager://localhost/auth/callback) through the App plugin's appUrlOpen event.
+// ONE flow for web AND native. The app always runs as a LIVE web view — the
+// Capacitor shell sets server.url to the hosted https origin (see
+// capacitor.config.ts), so the web view has a real https origin. We navigate
+// the web view itself to the Hosted UI and Cognito redirects back to
+// `<origin>/auth/callback`, which the query-param handler below catches
+// in-place. No external in-app browser and no custom-scheme deep link — that
+// was the bundled-app pattern, deliberately not used here (ported from the
+// mapping app, 2026-07-13).
 
 const Login = () => {
   const { signIn, signOut, status, error } = useAuth();
   const [localError, setLocalError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const listenerRef = useRef(null);
 
   useEffect(() => {
     if (window.location.pathname === '/auth/logout') {
@@ -32,10 +35,10 @@ const Login = () => {
     }
   }, [signOut]);
 
-  // Web-only: handle the OAuth callback via URL query params after redirect.
+  // Handle the OAuth callback via URL query params after Cognito redirects
+  // back to <origin>/auth/callback — in the browser and in the native live
+  // web view alike (the web view navigates back to the origin in-place).
   useEffect(() => {
-    if (isNative) return;
-
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const returnedState = params.get('state');
@@ -82,83 +85,6 @@ const Login = () => {
     exchange();
   }, [signIn]);
 
-  // Register the native URL callback listener on mount. The exchange handler
-  // lives inside the effect (it is only reachable from this listener), which
-  // also keeps the dependency array honest.
-  useEffect(() => {
-    if (!isNative) return;
-
-    // Native: exchange the auth code received via appUrlOpen callback.
-    const handleNativeCallback = async (url) => {
-      try {
-        const parsed = new URL(url);
-        const code = parsed.searchParams.get('code');
-        const returnedState = parsed.searchParams.get('state');
-        const errorParam = parsed.searchParams.get('error');
-
-        // Close the in-app browser
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.close().catch(() => {});
-
-        if (errorParam) {
-          setLocalError(getUserFacingError(
-            parsed.searchParams.get('error_description') || errorParam, 'signIn',
-          ));
-          setLoading(false);
-          return;
-        }
-
-        if (!code) return;
-
-        const storedState = sessionStorage.getItem(storageKeys.state);
-        const verifier = sessionStorage.getItem(storageKeys.verifier);
-
-        if (!storedState || storedState !== returnedState) {
-          setLocalError('Invalid sign-in state. Please try again.');
-          setLoading(false);
-          return;
-        }
-        if (!verifier) {
-          setLocalError('Missing PKCE verifier. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        const tokenResponse = await exchangeCodeForToken({ code, codeVerifier: verifier });
-        sessionStorage.removeItem(storageKeys.state);
-        sessionStorage.removeItem(storageKeys.verifier);
-        const accessToken = tokenResponse.access_token || tokenResponse.id_token;
-        if (!accessToken) {
-          throw new Error('Token response missing access token.');
-        }
-        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
-      } catch (err) {
-        setLocalError(getUserFacingError(err, 'signIn'));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    let cancelled = false;
-
-    const setup = async () => {
-      const { App } = await import('@capacitor/app');
-      if (cancelled) return;
-      listenerRef.current = await App.addListener('appUrlOpen', ({ url }) => {
-        if (url && url.includes('/auth/callback')) {
-          handleNativeCallback(url);
-        }
-      });
-    };
-
-    setup();
-
-    return () => {
-      cancelled = true;
-      listenerRef.current?.remove();
-    };
-  }, [signIn]);
-
   const handleHostedLogin = async () => {
     setLocalError(null);
     setLoading(true);
@@ -169,14 +95,9 @@ const Login = () => {
       sessionStorage.setItem(storageKeys.state, state);
       sessionStorage.setItem(storageKeys.verifier, verifier);
       const url = buildAuthorizeUrl({ state, codeChallenge: challenge });
-
-      if (isNative) {
-        // Open Cognito in an in-app browser; the callback will arrive via appUrlOpen.
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.open({ url, presentationStyle: 'fullscreen' });
-      } else {
-        window.location.assign(url);
-      }
+      // Navigate the (web view's) window itself — Cognito redirects back to
+      // this same origin's /auth/callback, caught by the effect above.
+      window.location.assign(url);
     } catch (err) {
       setLoading(false);
       setLocalError(getUserFacingError(err, 'signIn'));

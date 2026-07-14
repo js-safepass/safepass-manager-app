@@ -24,8 +24,10 @@ import { isNative } from './lib/platform.js'
 // deliberately usable from a desktop browser as well as the Capacitor shells.
 
 // Inject Content Security Policy for web deployments.
-// Skip on native — Capacitor's WKWebView/WebView already isolates content,
-// and custom URL schemes (safepassmanager://) break CSP 'self' resolution.
+// Skip on native — Capacitor's WKWebView/WebView already isolates content.
+// (Historically custom capacitor:// serving origins also broke CSP 'self'
+// resolution; this shell serves from the hosted https origin, but the skip
+// stays: the native web view is already the isolation boundary.)
 if (!isNative) {
   // Derive the dev origin from the actual location instead of hardcoding the
   // port (dev is pinned to 5273 in vite.config.js, but CAP_SERVER_URL and

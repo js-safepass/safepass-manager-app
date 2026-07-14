@@ -49,8 +49,10 @@ const config: CapacitorConfig = {
     // Offline fallback — loaded from the local bundle when the remote URL
     // is unreachable (no internet, DNS failure, etc.).
     errorPath: 'offline.html',
-    // OAuth deep-link callback (safepassmanager://) is handled separately
-    // via CFBundleURLTypes in Info.plist + @capacitor/app appUrlOpen.
+    // OAuth runs IN-PLACE in this live web view: the app navigates itself to
+    // the Hosted UI and Cognito redirects back to <server.url>/auth/callback.
+    // No custom URL scheme and no in-app browser (ported from the mapping
+    // app, 2026-07-13).
   },
 };
 

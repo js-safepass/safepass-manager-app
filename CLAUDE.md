@@ -25,8 +25,43 @@ Scope of THIS app stays the contractor brief (`docs/contractor-handoff/`): its C
 4. **Every backend call goes through `src/lib/managerApi.js`** (the centralized seam). The deferred DPoP/step-up hardening retrofits at its `attachProof` hook — never add a second fetch path.
 5. **App-specific backend contracts** (dated confirmations live at the decision point in code):
    - `If-Match` carries the resource's plain integer `version`, not the quoted ETag (sentinel-ui datamanager convention, verified 2026-07-10).
-   - `POST /v1/visits/{id}/confirm` is used by sentinel-ui but absent from the contractor OpenAPI subset — confirm allowlist membership with backend before Phase 3.
+   - `POST /v1/visits/{id}/confirm` is allowed under this app's backend policy (verified 2026-07-12; earlier open question resolved).
+   - `PATCH /v1/visits/{id}` does not exist on the backend and is not policy-allowed — visit changes go through the lifecycle actions only (backend decision "remove, don't build", 2026-07-12).
    - Provisional spec shapes (metrics group, scope tree) must be confirmed frozen before building those screens.
+
+## Backend app-client authorization gate (implemented 2026-07-12)
+
+The per-app confinement from the brief is now LIVE on the backend
+(`sentinel-datamanager` `internal/transport/http/apppolicy.go`, branch
+`feat/app-client-authorization`): deny-by-default, method-granular allowlists
+keyed on the access token's `client_id` (or ID token `aud`). This app's policy
+source is **"G"** — deliberately narrower than the contractor visitor app.
+Denials are `403` with RFC7807 code **`APP_POLICY_DENIED`**.
+
+- **Everything this app calls is allowed** (surveyed against
+  `src/lib/managerApi.js`, verified 2026-07-12): visitors CRUD-minus-delete,
+  photo upload, face-reindex, bulk create, checkin preflight/checkin/scheduled,
+  visits lifecycle (create/confirm/checkout/complete/cancel/assign-badge/
+  rerender-badge/events), org hierarchy reads (divisions/locations/buildings/
+  stations), host-contact reads, notifications (+ stream-ticket and SSE
+  stream), metrics, tracking reads, media.
+- **Deliberate exclusions — NOT bugs.** These 403 `APP_POLICY_DENIED` for
+  manager-app tokens by design (the contractor visitor app keeps them):
+  `DELETE /v1/visitors/{id}`, `GET /v1/visitors/{id}/photos`,
+  `GET /v1/visitors/bulk/template`, `GET /v1/orgs/{org}/badge-swipes`
+  (+`/export.csv`), `GET /v1/devices` and `/v1/devices/{id}`. Needing one of
+  these is a backend policy conversation, not a client retry.
+- **Enablement is a backend environment switch**: `COGNITO_MANAGER_AUDIENCE=`
+  `5grgviekbiv44ab9llnsdqnp55` (prod pool `us-gov-west-1_jpRl7DoR5`) /
+  `4diu3cb4nnt78al45dv5r8iqu9` (staging pool `us-gov-west-1_NKGtVs2Rq`). Until
+  the switch is set in an environment, this client's tokens are rejected as an
+  unaccepted audience — a **401 on `/v1/whoami`** there looks like an auth bug
+  but is the switch being off.
+
+Tracked-but-blocked (do NOT change): prod OAuth redirect URIs still point at
+the workers.dev placeholder pending `manage.safepass.com` DNS; the DPoP seam
+(`src/lib/dpop.js` + managerApi `attachProof`) stays deliberately unwired —
+that is the backend's next phase.
 
 ## Validate before PR
 
@@ -70,7 +105,7 @@ docs/               design docs & plans — check the Status header; see docs/RE
 ## Auth & infra reference
 
 - Cognito Hosted UI via the `auth.safepass.com` bridge → AWS GovCloud Cognito. Pool `us-gov-west-1_jpRl7DoR5`, app client `5grgviekbiv44ab9llnsdqnp55`.
-- Native OAuth: in-app browser + `safepassmanager://localhost/auth/callback` deep link.
+- Native OAuth: the shell is a LIVE web view (`server.url` = hosted origin), so OAuth navigates the web view in-place through the Hosted UI and back to `<origin>/auth/callback` — no in-app browser, no custom URL scheme (2026-07-13). Redirect/logout URIs default to `window.location.origin`; the `VITE_COGNITO_*_URI` vars are overrides only.
 - API base: `https://api.safepass.com`; this client is scoped to the `x-apps: visitor` + `shared` operations in `docs/contractor-handoff/3-api-spec.yaml`.
 - Env surface: all runtime config is `VITE_*` via `.env*` files (see `.env.example`); never a secret in a `VITE_` var. `VITE_MODE=dev` = auth bypass; `VITE_MANAGER_MOCK=true` = mock API (app must stay fully drivable with no backend).
 - Dev server is pinned to port **5273** (`strictPort` — OAuth callbacks are registered for `localhost:5273`; other local projects hold 5173).

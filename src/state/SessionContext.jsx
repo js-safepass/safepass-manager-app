@@ -7,6 +7,19 @@ import { SessionContext } from './useSession.js';
 // convention is recognizable across SafePass apps (localStorage is
 // per-origin, so the apps never actually collide).
 const ACTIVE_ORG_KEY = 'safepass.activeOrgId';
+// Per-org sub-scope (division/location/building picked in the ScopePicker
+// drill-down) — same key convention as sentinel-ui's scopeProvider.
+const scopeKeyFor = (orgId) => `safepass.scope.${orgId}`;
+
+function readStoredScope(orgId) {
+  if (!orgId) return null;
+  try {
+    const raw = window.localStorage.getItem(scopeKeyFor(orgId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function readStoredOrgId() {
   try {
@@ -29,10 +42,25 @@ export function SessionProvider({ children }) {
   const [sessionStatus, setSessionStatus] = useState('loading'); // loading | ready | no_access | error
   const [sessionError, setSessionError] = useState(null);
   const [activeOrgId, setActiveOrgIdState] = useState(readStoredOrgId);
+  // Sub-org scope from the drill-down (ids + display names), keyed per org.
+  const [activeScope, setActiveScopeState] = useState(() => readStoredScope(readStoredOrgId()));
   const readyOnceRef = useRef(false);
+
+  const setActiveScope = useCallback((scope) => {
+    setActiveScopeState(scope || null);
+    const orgId = window.localStorage.getItem(ACTIVE_ORG_KEY);
+    try {
+      if (orgId && scope) window.localStorage.setItem(scopeKeyFor(orgId), JSON.stringify(scope));
+      else if (orgId) window.localStorage.removeItem(scopeKeyFor(orgId));
+    } catch {
+      // Storage unavailable — selection just won't persist.
+    }
+  }, []);
 
   const setActiveOrgId = useCallback((orgId) => {
     setActiveOrgIdState(orgId);
+    // Scope is per-org: switching orgs swaps in that org's persisted scope.
+    setActiveScopeState(readStoredScope(orgId));
     try {
       if (orgId) window.localStorage.setItem(ACTIVE_ORG_KEY, orgId);
       else window.localStorage.removeItem(ACTIVE_ORG_KEY);
@@ -91,12 +119,14 @@ export function SessionProvider({ children }) {
       sessionError,
       activeOrgId,
       setActiveOrgId,
+      activeScope,
+      setActiveScope,
       orgIds: whoami?.org_ids || [],
       scopeLabel: whoami?.scope_label || '',
       membershipVersion: whoami?.membership_version || null,
       refreshSession: load,
     }),
-    [whoami, scopes, sessionStatus, sessionError, activeOrgId, setActiveOrgId, load],
+    [whoami, scopes, sessionStatus, sessionError, activeOrgId, setActiveOrgId, activeScope, setActiveScope, load],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
