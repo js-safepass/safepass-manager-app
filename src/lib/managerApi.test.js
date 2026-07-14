@@ -164,3 +164,87 @@ test('isMutating classifies methods', () => {
   expect(isMutating('patch')).toBe(true);
   expect(isMutating('GET')).toBe(false);
 });
+
+test('401 forces one refresh and retries with the new token and the SAME idempotency key', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(init);
+    if (calls.length === 1) {
+      return new Response(JSON.stringify({ title: 'Unauthorized', status: 401, code: 'UNAUTHORIZED' }), {
+        status: 401, headers: { 'content-type': 'application/problem+json' },
+      });
+    }
+    return new Response(JSON.stringify({ data: { id: 'visit_1' } }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  };
+  // Stateful accessor mirroring the real freshToken provider: a forced
+  // refresh rotates the held token, and subsequent plain reads return it.
+  let held = 'stale-token';
+  let unauthorized = 0;
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      getAccessToken: ({ forceRefresh } = {}) => {
+        if (forceRefresh) held = 'fresh-token';
+        return Promise.resolve(held);
+      },
+      onUnauthorized: () => { unauthorized += 1; },
+    });
+    const result = await api.checkin('visitor_1', {});
+    expect(result?.data?.id).toBe('visit_1');
+    expect(calls).toHaveLength(2);
+    expect(calls[0].headers.get('Authorization')).toBe('Bearer stale-token');
+    expect(calls[1].headers.get('Authorization')).toBe('Bearer fresh-token');
+    // The retry replays the SAME idempotency key — one logical mutation.
+    expect(calls[1].headers.get('Idempotency-Key')).toBe(calls[0].headers.get('Idempotency-Key'));
+    expect(unauthorized).toBe(0); // recovered — the auth owner is not notified
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('401 with an unchanged token skips the retry and notifies onUnauthorized once', async () => {
+  const originalFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = async () => {
+    fetches += 1;
+    return new Response(JSON.stringify({ title: 'Unauthorized', status: 401, code: 'UNAUTHORIZED' }), {
+      status: 401, headers: { 'content-type': 'application/problem+json' },
+    });
+  };
+  let unauthorized = 0;
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      getAccessToken: () => Promise.resolve('same-token'), // forceRefresh yields no change
+      onUnauthorized: () => { unauthorized += 1; },
+    });
+    const error = await api.whoami().catch((e) => e);
+    expect(error.status).toBe(401);
+    expect(fetches).toBe(1); // no pointless replay with an identical token
+    expect(unauthorized).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('an accessor throw surfaces UNAUTHORIZED but preserves the cause for logging', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = captureFetch(jsonResponse(200, { data: {} }));
+  const boom = new Error('provider exploded');
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      getAccessToken: () => Promise.reject(boom),
+    });
+    const error = await api.whoami().catch((e) => e);
+    expect(error).toBeInstanceOf(ManagerApiError);
+    expect(error.code).toBe('UNAUTHORIZED');
+    expect(error.details?.cause).toBe(boom);
+    expect(calls).toHaveLength(0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

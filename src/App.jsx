@@ -12,6 +12,7 @@ import VisitorsList from './pages/visitors/VisitorsList.jsx';
 import VisitorDetail from './pages/visitors/VisitorDetail.jsx';
 import VisitsList from './pages/visits/VisitsList.jsx';
 import NotificationsInbox from './pages/NotificationsInbox.jsx';
+import ScopePicker from './pages/ScopePicker.jsx';
 
 // Auth gate over the routed app. Signed out, every path renders Login (which
 // also handles the /auth/callback and /auth/logout redirects); signed in,
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/visitors/:visitorId" element={<VisitorDetail />} />
               <Route path="/visits" element={<VisitsList />} />
               <Route path="/notifications" element={<NotificationsInbox />} />
+              <Route path="/scope" element={<ScopePicker />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
               </Routes>

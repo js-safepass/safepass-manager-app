@@ -8,14 +8,15 @@ import { ApiContext } from './useApi.js';
 // managerApi.js directly — so auth wiring and the deferred DPoP retrofit
 // stay in one place.
 //
-// Real mode: tokens come from getFreshAccessToken (silent refresh inside),
-// and any authoritative 401 signs the user out via the seam's
-// onUnauthorized hook — screens never hand-roll re-auth.
+// Real mode: tokens come from getFreshAccessToken (silent refresh inside);
+// the seam retries a 401 once with a forced refresh, then hands off to
+// AuthContext.onUnauthorized — threshold-gated there, so screens never
+// hand-roll re-auth and a lone transient 401 never ends the session.
 //
 // VITE_MANAGER_MOCK=true (build var) swaps in the stateful mock: the entire
 // app must remain drivable with no backend (seed bundle BOOTSTRAP step 3).
 export function ApiProvider({ children }) {
-  const { getFreshAccessToken, signOut } = useAuth();
+  const { getFreshAccessToken, onUnauthorized } = useAuth();
   const useMock = import.meta.env.VITE_MANAGER_MOCK === 'true';
 
   const api = useMemo(() => {
@@ -23,11 +24,9 @@ export function ApiProvider({ children }) {
     return createManagerApi({
       baseUrl: import.meta.env.VITE_MANAGER_API_BASE,
       getAccessToken: getFreshAccessToken,
-      // Local sign-out only: the Cognito SSO cookie may still be valid, so
-      // the login screen restores the session in one click.
-      onUnauthorized: () => signOut({ hosted: false }),
+      onUnauthorized,
     });
-  }, [useMock, getFreshAccessToken, signOut]);
+  }, [useMock, getFreshAccessToken, onUnauthorized]);
 
   return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
 }

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Badge, Button, Offcanvas } from 'react-bootstrap';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
 import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
+import { useScopedPolling } from '../lib/useScopedPolling.js';
+import { checkForDeployedUpdate, UPDATE_CHECK_INTERVAL_MS } from '../lib/appUpdate.js';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
@@ -46,7 +48,7 @@ function SidebarBrand() {
 // --safepass-primary-dark navy, white-on-8%-white active state).
 export default function AppLayout() {
   const { signOut } = useAuth();
-  const { scopeLabel } = useSession();
+  const { scopeLabel, activeScope } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
 
@@ -54,6 +56,22 @@ export default function AppLayout() {
   useEffect(() => {
     setDrawerOpen(false);
   }, [location.pathname]);
+
+  // Self-update (decision #6): staff leave this app open all day, and D1
+  // deploys never restart a running tab. Poll /version.json every 15 min and
+  // reload ONLY while the tab is hidden — the strictest reading of "never
+  // reload mid-interaction": a hidden tab can't be mid-anything. A visible
+  // stale tab picks the deploy up the next time the user tabs away.
+  useScopedPolling({
+    channel: 'app-update',
+    intervalMs: UPDATE_CHECK_INTERVAL_MS,
+    requireVisible: false,
+    poll: async () => {
+      if (document.visibilityState === 'hidden') {
+        await checkForDeployedUpdate();
+      }
+    },
+  });
 
   return (
     <div className="app-shell">
@@ -81,14 +99,17 @@ export default function AppLayout() {
           >
             <i className="fas fa-bars fs-5" aria-hidden="true" />
           </Button>
-          <div className="text-muted small text-truncate">
+          {/* Resolved scope chain — click to open the scope drill-down. */}
+          <Link to="/scope" className="text-muted small text-truncate text-decoration-none" title="Change workspace scope">
             {scopeLabel ? (
               <>
                 <i className="fas fa-building me-2" aria-hidden="true" />
-                {scopeLabel}
+                {[scopeLabel, activeScope?.divisionName, activeScope?.locationName, activeScope?.buildingName]
+                  .filter(Boolean)
+                  .join(' › ')}
               </>
             ) : null}
-          </div>
+          </Link>
           <div className="ms-auto">
             <Button variant="outline-secondary" size="sm" onClick={signOut}>
               Sign out
