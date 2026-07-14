@@ -112,9 +112,9 @@ to `manage.safepass.com` (and a staging equivalent) means, per environment:
 1. Add the custom domain to the Cloudflare project (old URL keeps working).
 2. Register the new `/auth/callback` + `/auth/logout` URLs on that env's
    Cognito app client — keep the workers.dev entries during transition.
-3. Update `VITE_COGNITO_REDIRECT_URI`/`_LOGOUT_URI` in `.env.staging` /
-   `.env.production`, and `server.url` in `capacitor.config.ts` (production
-   only — this one requires a native shell rebuild, D1).
+3. Update `server.url` in `capacitor.config.ts` (production only — requires
+   a native shell rebuild, D1). Redirect/logout URIs need NO change: they
+   derive from `window.location.origin` at runtime (2026-07-13).
 4. Backend CORS: add the new origins.
 5. Promote through the normal flow; verify sign-in on the new domain, then
    optionally retire the workers.dev callback entries.

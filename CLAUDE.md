@@ -82,7 +82,7 @@ CI (`.github/workflows/ci-pr.yml`): lint/test on PRs to `develop`; + build for `
 src/
 ├── main.jsx        entry: runtime CSP, provider tree (Network → Auth → App)
 ├── App.jsx         thin auth gate (React Router lands with the first routed screens)
-├── pages/          Login, Home (Phase 0); screens + their components
+├── pages/          Login, Dashboard, visitors/, visits/, NotificationsInbox, ScopePicker
 ├── state/          contexts (Auth, Api, Network) + useFoo.js accessor hooks
 └── lib/            framework-free logic, unit-tested; lib/native/ = guarded plugin wrappers
 ios/, android/      committed Capacitor shells (lint-ignored; not yet generated)

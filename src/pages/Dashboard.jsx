@@ -21,14 +21,20 @@ const TILES = [
 // re-check when the backend freezes the metrics group.
 export default function Dashboard() {
   const api = useApi();
-  const { activeOrgId } = useSession();
+  const { activeOrgId, activeScope } = useSession();
   const { notifications, unreadCount } = useNotifications();
   const [metrics, setMetrics] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await api.getMetrics({ presets: 'visitors,ops', org_id: activeOrgId });
+    const res = await api.getMetrics({
+      presets: 'visitors,ops',
+      org_id: activeOrgId,
+      division_id: activeScope?.divisionId || undefined,
+      location_id: activeScope?.locationId || undefined,
+      building_id: activeScope?.buildingId || undefined,
+    });
     setMetrics(res?.data || null);
-  }, [api, activeOrgId]);
+  }, [api, activeOrgId, activeScope]);
 
   useEffect(() => {
     load().catch(() => {});

@@ -28,7 +28,7 @@ function FieldRow({ label, children }) {
 export default function VisitorDetail() {
   const { visitorId } = useParams();
   const api = useApi();
-  const { activeOrgId } = useSession();
+  const { activeOrgId, activeScope } = useSession();
   const flash = useFlash();
   const navigate = useNavigate();
   const [visitor, setVisitor] = useState(null);
@@ -64,9 +64,13 @@ export default function VisitorDetail() {
   const checkIn = async () => {
     setCheckingIn(true);
     try {
-      // org_id in the body per the check-in contract (sentinel-ui
-      // process-flows: all create/confirm/check-in calls send org_id).
-      await api.checkin(visitorId, { org_id: activeOrgId });
+      // org_id per the check-in contract; building_id from the picked
+      // workspace scope — check-in requires building context (brief §4), and
+      // a missing one surfaces as the BUILDING_REQUIRED catalogue error.
+      await api.checkin(visitorId, {
+        org_id: activeOrgId,
+        building_id: activeScope?.buildingId || undefined,
+      });
       flash.success(`Check-in started for ${visitor.first_name} ${visitor.last_name}.`);
       navigate('/visits');
     } catch (err) {
