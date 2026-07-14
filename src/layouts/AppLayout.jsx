@@ -4,6 +4,8 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
 import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
+import { useScopedPolling } from '../lib/useScopedPolling.js';
+import { checkForDeployedUpdate, UPDATE_CHECK_INTERVAL_MS } from '../lib/appUpdate.js';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: 'fa-gauge-high', label: 'Dashboard' },
@@ -54,6 +56,22 @@ export default function AppLayout() {
   useEffect(() => {
     setDrawerOpen(false);
   }, [location.pathname]);
+
+  // Self-update (decision #6): staff leave this app open all day, and D1
+  // deploys never restart a running tab. Poll /version.json every 15 min and
+  // reload ONLY while the tab is hidden — the strictest reading of "never
+  // reload mid-interaction": a hidden tab can't be mid-anything. A visible
+  // stale tab picks the deploy up the next time the user tabs away.
+  useScopedPolling({
+    channel: 'app-update',
+    intervalMs: UPDATE_CHECK_INTERVAL_MS,
+    requireVisible: false,
+    poll: async () => {
+      if (document.visibilityState === 'hidden') {
+        await checkForDeployedUpdate();
+      }
+    },
+  });
 
   return (
     <div className="app-shell">

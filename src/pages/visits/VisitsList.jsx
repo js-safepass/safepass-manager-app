@@ -27,7 +27,7 @@ function badgeStatus(v) {
 // checking_in → active and the badge pipeline progress live on screen.
 export default function VisitsList() {
   const api = useApi();
-  const { activeOrgId } = useSession();
+  const { activeOrgId, activeScope } = useSession();
   const flash = useFlash();
   const [rows, setRows] = useState([]);
   const [visitorsById, setVisitorsById] = useState({});
@@ -38,8 +38,13 @@ export default function VisitsList() {
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
     try {
+      // Narrow to the picked workspace scope (spec: /visits accepts
+      // division/location/building filters). Unpicked levels stay undefined.
       const page = await api.listVisits({
         org_id: activeOrgId,
+        division_id: activeScope?.divisionId || undefined,
+        location_id: activeScope?.locationId || undefined,
+        building_id: activeScope?.buildingId || undefined,
         limit: 30,
         status: statusFilter || undefined,
         expand: 'visitor',
@@ -52,7 +57,7 @@ export default function VisitsList() {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [api, activeOrgId, statusFilter]);
+  }, [api, activeOrgId, activeScope, statusFilter]);
 
   useEffect(() => {
     load();

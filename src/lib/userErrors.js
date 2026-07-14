@@ -22,6 +22,10 @@ const CODE_MESSAGES = {
   // Auth / access
   UNAUTHORIZED: 'Your session has expired. Please sign in again.',
   FORBIDDEN: 'You do not have access to do that.',
+  // Backend app-client gate (CLAUDE.md "authorization gate"): the action is
+  // outside this app's policy by design — a config/product boundary, not a
+  // retryable user error.
+  APP_POLICY_DENIED: 'This action is not available in this app.',
   NOT_FOUND: 'That record could not be found.',
 
   // Check-in gates (front-desk fallback flow; codes per the brief §4)
