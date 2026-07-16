@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './useApi.js';
 import { getUserFacingError } from '../lib/userErrors.js';
+import { classifyWhoami, isWhoamiMfaGated, whoamiOrgIds } from '../lib/whoami.js';
 import { SessionContext } from './useSession.js';
 
 // Persisted org selection — same key sentinel-ui uses, deliberately, so the
@@ -39,7 +40,8 @@ export function SessionProvider({ children }) {
   const api = useApi();
   const [whoami, setWhoami] = useState(null);
   const [scopes, setScopes] = useState(null);
-  const [sessionStatus, setSessionStatus] = useState('loading'); // loading | ready | no_access | error
+  // loading | ready | mfa_required | no_access | error
+  const [sessionStatus, setSessionStatus] = useState('loading');
   const [sessionError, setSessionError] = useState(null);
   const [activeOrgId, setActiveOrgIdState] = useState(readStoredOrgId);
   // Sub-org scope from the drill-down (ids + display names), keyed per org.
@@ -77,14 +79,24 @@ export function SessionProvider({ children }) {
       const data = who?.data || null;
       setWhoami(data);
 
+      // whoami has TWO shapes (auth-contract §3). When MFA-gated it is TRIMMED
+      // to identity + MFA flags — NO org_ids/assignments/effective_permissions.
+      // Classify FIRST so a trimmed payload renders the MFA-completion screen
+      // instead of being misread as "no workspace access".
+      const kind = classifyWhoami(data);
+      if (kind === 'mfa_required') {
+        setSessionStatus('mfa_required');
+        return; // don't fetch scopes / reconcile orgs — there is no authz surface yet
+      }
+
       // Scope catalog is PROVISIONAL in the spec — fetch it, but never let
       // its failure block the session.
       api.listAuthScopes()
         .then((res) => setScopes(res?.data ?? null))
         .catch(() => setScopes(null));
 
-      const orgIds = data?.org_ids || [];
-      if (orgIds.length === 0) {
+      const orgIds = whoamiOrgIds(data);
+      if (kind === 'no_access') {
         setSessionStatus('no_access');
         return;
       }
@@ -121,7 +133,8 @@ export function SessionProvider({ children }) {
       setActiveOrgId,
       activeScope,
       setActiveScope,
-      orgIds: whoami?.org_ids || [],
+      orgIds: whoamiOrgIds(whoami),
+      mfaRequired: isWhoamiMfaGated(whoami),
       scopeLabel: whoami?.scope_label || '',
       membershipVersion: whoami?.membership_version || null,
       refreshSession: load,

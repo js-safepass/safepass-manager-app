@@ -230,6 +230,67 @@ test('401 with an unchanged token skips the retry and notifies onUnauthorized on
   }
 });
 
+test('a known auth code (MFA) skips the refresh-retry and hands the code to onUnauthorized', async () => {
+  const originalFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = async () => {
+    fetches += 1;
+    return new Response(
+      JSON.stringify({ title: 'Unauthorized', status: 401, code: 'MFA_REAUTH_REQUIRED' }),
+      { status: 401, headers: { 'content-type': 'application/problem+json' } },
+    );
+  };
+  let refreshes = 0;
+  const seen = [];
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      // A forced refresh WOULD yield a different token — but an MFA code isn't
+      // refreshable, so the seam must not even try.
+      getBearerToken: ({ forceRefresh } = {}) => {
+        if (forceRefresh) refreshes += 1;
+        return Promise.resolve(forceRefresh ? 'fresh' : 'stale');
+      },
+      onUnauthorized: (info) => { seen.push(info); },
+    });
+    const error = await api.whoami().catch((e) => e);
+    expect(error.code).toBe('MFA_REAUTH_REQUIRED');
+    expect(fetches).toBe(1);   // no wasted retry
+    expect(refreshes).toBe(0); // never forced a refresh for a non-refreshable code
+    expect(seen).toEqual([{ code: 'MFA_REAUTH_REQUIRED', status: 401 }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a 403 USER_ACCOUNT_INACTIVE notifies onUnauthorized (terminal); other 403s do not', async () => {
+  const originalFetch = globalThis.fetch;
+  const seen = [];
+  const make403 = (code) => async () =>
+    new Response(JSON.stringify({ title: 'Forbidden', status: 403, code }), {
+      status: 403, headers: { 'content-type': 'application/problem+json' },
+    });
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      getBearerToken: () => 'jwt',
+      onUnauthorized: (info) => { seen.push(info); },
+    });
+
+    globalThis.fetch = make403('USER_ACCOUNT_INACTIVE');
+    await api.whoami().catch((e) => e);
+    expect(seen).toEqual([{ code: 'USER_ACCOUNT_INACTIVE', status: 403 }]);
+
+    // A policy/authz 403 is NOT an auth-owner event — it surfaces at the call
+    // site (tenant-safe 404s / APP_POLICY_DENIED), never signs the user out.
+    globalThis.fetch = make403('APP_POLICY_DENIED');
+    await api.whoami().catch((e) => e);
+    expect(seen).toHaveLength(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('an accessor throw surfaces UNAUTHORIZED but preserves the cause for logging', async () => {
   const originalFetch = globalThis.fetch;
   const calls = captureFetch(jsonResponse(200, { data: {} }));

@@ -191,12 +191,16 @@ export function createManagerApi({
 
     if (response.ok) return payload;
 
-    // A 401 can straddle expiry (clock skew) or hit a token the silent
-    // refresh hadn't rotated yet. Before treating it as terminal, force ONE
-    // refresh and retry if that actually yields a different token — mirrors
-    // sentinel-ui's fetchWithAuth. If the token doesn't change (e.g. the
-    // backend is rejecting a valid token), fall through to onUnauthorized.
-    if (response.status === 401 && !retried && getBearerToken) {
+    const { code, message } = parseErrorPayload(payload);
+
+    // Silent refresh-then-retry is ONLY for a plain, refreshable 401 (expiry,
+    // clock skew, or a token the silent refresh hadn't rotated yet). Force ONE
+    // refresh and retry if that yields a different token — mirrors sentinel-ui's
+    // fetchWithAuth. A KNOWN auth code (MFA gate, ID_TOKEN_REQUIRED bearer/config
+    // fault) can't be fixed by a fresh token, so skip the retry and hand the code
+    // straight to the auth owner (auth-contract §2).
+    const refreshable401 = response.status === 401 && (!code || code === 'UNAUTHORIZED');
+    if (refreshable401 && !retried && getBearerToken) {
       let refreshed = null;
       try {
         refreshed = await getBearerToken({ forceRefresh: true });
@@ -208,13 +212,14 @@ export function createManagerApi({
       }
     }
 
-    const { code, message } = parseErrorPayload(payload);
-
-    // Notify the auth owner so it can decide (threshold-gated) whether the
-    // session is dead. Pollers must stop on 401 (brief §5).
-    if (response.status === 401) {
+    // Notify the auth owner (with the code) for any auth-relevant failure so it
+    // can branch per §2: every 401, plus the terminal USER_ACCOUNT_INACTIVE 403.
+    // Pollers must stop on these (brief §5).
+    const authRelevant = response.status === 401
+      || (response.status === 403 && code === 'USER_ACCOUNT_INACTIVE');
+    if (authRelevant) {
       try {
-        onUnauthorized?.();
+        onUnauthorized?.({ code, status: response.status });
       } catch {
         // The sign-out hook must never mask the original error.
       }
