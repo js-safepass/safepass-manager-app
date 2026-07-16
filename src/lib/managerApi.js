@@ -47,6 +47,17 @@ export function isPermissionError(err) {
   return status === 403 || status === 404;
 }
 
+// The poll-halt predicate: a background poller must STOP, not spin, on any of
+// 401/403/404. A permission error (isPermissionError) is a permanent wall; a
+// 401 reaching a poller is a real, persistent auth stop — the seam only throws
+// 401 AFTER its own refresh-then-retry gave up, so retrying every interval
+// would loop forever (an expired/revoked session, an audience-off env, or an
+// MFA gate that halts here rather than re-arming a doomed poll). The loop
+// re-arms when enabled/scope deps change (e.g. a re-auth remounts the tree).
+export function shouldHaltPolling(err) {
+  return err?.status === 401 || isPermissionError(err);
+}
+
 function normalizeBaseUrl(baseUrl) {
   if (!baseUrl) return '';
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

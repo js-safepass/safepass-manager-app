@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { createManagerApi, ManagerApiError, isMutating } from './managerApi.js';
+import { createManagerApi, ManagerApiError, isMutating, isPermissionError, shouldHaltPolling } from './managerApi.js';
 
 function jsonResponse(status, body, headers = {}) {
   return new Response(JSON.stringify(body), {
@@ -163,6 +163,22 @@ test('isMutating classifies methods', () => {
   expect(isMutating('POST')).toBe(true);
   expect(isMutating('patch')).toBe(true);
   expect(isMutating('GET')).toBe(false);
+});
+
+test('shouldHaltPolling stops a poller on 401/403/404 (incl. an MFA 401), not on transient errors', () => {
+  // 401 is the fix: an MFA-gated / expired / revoked session must not spin.
+  expect(shouldHaltPolling({ status: 401, code: 'MFA_REQUIRED' })).toBe(true);
+  expect(shouldHaltPolling({ status: 401, code: 'UNAUTHORIZED' })).toBe(true);
+  // Existing permission-wall behavior is preserved.
+  expect(shouldHaltPolling({ status: 403 })).toBe(true);
+  expect(shouldHaltPolling({ status: 404 })).toBe(true);
+  // Transient/server errors keep polling — the backend may recover.
+  expect(shouldHaltPolling({ status: 500 })).toBe(false);
+  expect(shouldHaltPolling({ status: 429 })).toBe(false);
+  expect(shouldHaltPolling(new Error('network'))).toBe(false);
+  // isPermissionError itself stays 403/404 only (401 is auth, not permission).
+  expect(isPermissionError({ status: 401 })).toBe(false);
+  expect(isPermissionError({ status: 403 })).toBe(true);
 });
 
 test('401 forces one refresh and retries with the new token and the SAME idempotency key', async () => {
