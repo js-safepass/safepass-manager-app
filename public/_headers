@@ -1,0 +1,28 @@
+# Edge response headers for the deployed app (Cloudflare Workers static assets
+# serve this file — copied verbatim from public/ into the build root). This is
+# the AUTHORITATIVE Content-Security-Policy for staging/production; the runtime
+# <meta> CSP in src/main.jsx is DEV-server-only (Vite doesn't serve _headers),
+# so there is no double-CSP drift in production.
+#
+# Native (Capacitor) loads the hosted origin as a live web view, so it inherits
+# this policy too. `frame-ancestors 'none'` is a top-level page constraint and
+# does not affect the WKWebView/WebView shell (it is not an iframe embed).
+#
+# Directive notes:
+#   default-src 'self'      lock everything down; widen per-type below
+#   object-src 'none'       no <object>/<embed>/<applet> (task requirement)
+#   base-uri 'self'         block <base> tag base-URL hijacking (task req.)
+#   frame-ancestors 'none'  clickjacking protection — cannot be set via <meta>,
+#                           which is exactly why the real header is required
+#   script-src 'self'       bundled JS only; no inline/eval (no 'unsafe-inline')
+#   style-src 'unsafe-inline' react-bootstrap + inline style attrs need it
+#   connect-src https:      the DataManager API + Cognito token endpoint vary by
+#                           environment and the app derives them from config, so
+#                           any https origin is permitted (plus SSE + media)
+#   img-src data: blob: https:  signed S3 media + data/blob previews
+#   font-src 'self'         DM Sans is self-hosted via @fontsource (bundled)
+/*
+  Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https:
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer

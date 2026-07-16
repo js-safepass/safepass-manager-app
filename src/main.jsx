@@ -23,24 +23,27 @@ import { isNative } from './lib/platform.js'
 // No browser gate here (unlike the kiosk chassis): SafePass Manager is
 // deliberately usable from a desktop browser as well as the Capacitor shells.
 
-// Inject Content Security Policy for web deployments.
-// Skip on native — Capacitor's WKWebView/WebView already isolates content.
-// (Historically custom capacitor:// serving origins also broke CSP 'self'
-// resolution; this shell serves from the hosted https origin, but the skip
-// stays: the native web view is already the isolation boundary.)
-if (!isNative) {
-  // Derive the dev origin from the actual location instead of hardcoding the
-  // port (dev is pinned to 5273 in vite.config.js, but CAP_SERVER_URL and
-  // preview runs can differ).
-  const devConnectSrc = import.meta.env.DEV
-    ? ` http://${window.location.host} ws://${window.location.host}`
-    : '';
+// Content Security Policy:
+//   - DEPLOYED (staging/production, and the native live web view that loads the
+//     hosted origin): served as a real edge header from public/_headers — the
+//     authoritative policy, and the ONLY place `frame-ancestors` can live (it is
+//     ignored in a <meta> tag).
+//   - DEV SERVER only: Vite doesn't serve _headers, so inject an equivalent
+//     <meta> CSP here, widened for the HMR websocket. Keeping this dev-only
+//     avoids a second, drifting production CSP.
+// Native is skipped regardless — the WebView isn't the Vite dev server and
+// inherits the hosted origin's header CSP.
+if (!isNative && import.meta.env.DEV) {
+  const host = window.location.host; // dev is pinned to 5273; HMR uses ws://host
   const cspContent = [
     "default-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
     "script-src 'self'",
-    `connect-src 'self' https://*${devConnectSrc}`,
-    "img-src 'self' data: blob: https://*",
+    `connect-src 'self' https: http://${host} ws://${host}`,
+    "img-src 'self' data: blob: https:",
     "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
   ].join('; ') + ';';
 
   const cspMeta = document.createElement('meta');
