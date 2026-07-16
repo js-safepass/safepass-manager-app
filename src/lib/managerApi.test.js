@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { createManagerApi, ManagerApiError, isMutating } from './managerApi.js';
+import { createManagerApi, ManagerApiError, isMutating, isPermissionError, shouldHaltPolling } from './managerApi.js';
 
 function jsonResponse(status, body, headers = {}) {
   return new Response(JSON.stringify(body), {
@@ -26,7 +26,7 @@ test('managerFetch sends bearer, request id, and auto Idempotency-Key on mutatio
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     await api.createVisitor({ first_name: 'Jane' });
 
@@ -47,7 +47,7 @@ test('managerFetch does not send Idempotency-Key on GETs', async () => {
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     await api.listVisitors({ org_id: 'org_1', name: 'doe', cursor: undefined });
 
@@ -65,7 +65,7 @@ test('updateVisitor sends If-Match as the plain integer version string', async (
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     // The sentinel-ui convention: If-Match carries data.version as-is
     // (no quotes, no W/ prefix) — the backend compares versions, not ETags.
@@ -92,7 +92,7 @@ test('RFC7807 problem+json errors surface code/status/detail on ManagerApiError'
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     const error = await api.checkin('visitor_1', {}).catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);
@@ -117,7 +117,7 @@ test('Retry-After header lands on error.retryAfter (seconds)', async () => {
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     const error = await api.checkin('visitor_1', {}).catch((e) => e);
     expect(error.retryAfter).toBe(7);
@@ -126,13 +126,13 @@ test('Retry-After header lands on error.retryAfter (seconds)', async () => {
   }
 });
 
-test('missing access token throws UNAUTHORIZED without hitting the network', async () => {
+test('missing bearer token throws UNAUTHORIZED without hitting the network', async () => {
   const originalFetch = globalThis.fetch;
   const calls = captureFetch(jsonResponse(200, { data: {} }));
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => null,
+      getBearerToken: () => null,
     });
     const error = await api.whoami().catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);
@@ -149,7 +149,7 @@ test('attachProof hook sets the DPoP header when provided (deferred-hardening se
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
       attachProof: async ({ method, url, bearer }) => `proof:${method}:${url}:${bearer ? 'y' : 'n'}`,
     });
     await api.whoami();
@@ -163,6 +163,22 @@ test('isMutating classifies methods', () => {
   expect(isMutating('POST')).toBe(true);
   expect(isMutating('patch')).toBe(true);
   expect(isMutating('GET')).toBe(false);
+});
+
+test('shouldHaltPolling stops a poller on 401/403/404 (incl. an MFA 401), not on transient errors', () => {
+  // 401 is the fix: an MFA-gated / expired / revoked session must not spin.
+  expect(shouldHaltPolling({ status: 401, code: 'MFA_REQUIRED' })).toBe(true);
+  expect(shouldHaltPolling({ status: 401, code: 'UNAUTHORIZED' })).toBe(true);
+  // Existing permission-wall behavior is preserved.
+  expect(shouldHaltPolling({ status: 403 })).toBe(true);
+  expect(shouldHaltPolling({ status: 404 })).toBe(true);
+  // Transient/server errors keep polling — the backend may recover.
+  expect(shouldHaltPolling({ status: 500 })).toBe(false);
+  expect(shouldHaltPolling({ status: 429 })).toBe(false);
+  expect(shouldHaltPolling(new Error('network'))).toBe(false);
+  // isPermissionError itself stays 403/404 only (401 is auth, not permission).
+  expect(isPermissionError({ status: 401 })).toBe(false);
+  expect(isPermissionError({ status: 403 })).toBe(true);
 });
 
 test('401 forces one refresh and retries with the new token and the SAME idempotency key', async () => {
@@ -186,7 +202,7 @@ test('401 forces one refresh and retries with the new token and the SAME idempot
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: ({ forceRefresh } = {}) => {
+      getBearerToken: ({ forceRefresh } = {}) => {
         if (forceRefresh) held = 'fresh-token';
         return Promise.resolve(held);
       },
@@ -218,13 +234,74 @@ test('401 with an unchanged token skips the retry and notifies onUnauthorized on
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => Promise.resolve('same-token'), // forceRefresh yields no change
+      getBearerToken: () => Promise.resolve('same-token'), // forceRefresh yields no change
       onUnauthorized: () => { unauthorized += 1; },
     });
     const error = await api.whoami().catch((e) => e);
     expect(error.status).toBe(401);
     expect(fetches).toBe(1); // no pointless replay with an identical token
     expect(unauthorized).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a known auth code (MFA) skips the refresh-retry and hands the code to onUnauthorized', async () => {
+  const originalFetch = globalThis.fetch;
+  let fetches = 0;
+  globalThis.fetch = async () => {
+    fetches += 1;
+    return new Response(
+      JSON.stringify({ title: 'Unauthorized', status: 401, code: 'MFA_REAUTH_REQUIRED' }),
+      { status: 401, headers: { 'content-type': 'application/problem+json' } },
+    );
+  };
+  let refreshes = 0;
+  const seen = [];
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      // A forced refresh WOULD yield a different token — but an MFA code isn't
+      // refreshable, so the seam must not even try.
+      getBearerToken: ({ forceRefresh } = {}) => {
+        if (forceRefresh) refreshes += 1;
+        return Promise.resolve(forceRefresh ? 'fresh' : 'stale');
+      },
+      onUnauthorized: (info) => { seen.push(info); },
+    });
+    const error = await api.whoami().catch((e) => e);
+    expect(error.code).toBe('MFA_REAUTH_REQUIRED');
+    expect(fetches).toBe(1);   // no wasted retry
+    expect(refreshes).toBe(0); // never forced a refresh for a non-refreshable code
+    expect(seen).toEqual([{ code: 'MFA_REAUTH_REQUIRED', status: 401 }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a 403 USER_ACCOUNT_INACTIVE notifies onUnauthorized (terminal); other 403s do not', async () => {
+  const originalFetch = globalThis.fetch;
+  const seen = [];
+  const make403 = (code) => async () =>
+    new Response(JSON.stringify({ title: 'Forbidden', status: 403, code }), {
+      status: 403, headers: { 'content-type': 'application/problem+json' },
+    });
+  try {
+    const api = createManagerApi({
+      baseUrl: 'https://api.local',
+      getBearerToken: () => 'jwt',
+      onUnauthorized: (info) => { seen.push(info); },
+    });
+
+    globalThis.fetch = make403('USER_ACCOUNT_INACTIVE');
+    await api.whoami().catch((e) => e);
+    expect(seen).toEqual([{ code: 'USER_ACCOUNT_INACTIVE', status: 403 }]);
+
+    // A policy/authz 403 is NOT an auth-owner event — it surfaces at the call
+    // site (tenant-safe 404s / APP_POLICY_DENIED), never signs the user out.
+    globalThis.fetch = make403('APP_POLICY_DENIED');
+    await api.whoami().catch((e) => e);
+    expect(seen).toHaveLength(1);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -237,7 +314,7 @@ test('an accessor throw surfaces UNAUTHORIZED but preserves the cause for loggin
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => Promise.reject(boom),
+      getBearerToken: () => Promise.reject(boom),
     });
     const error = await api.whoami().catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);

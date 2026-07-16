@@ -8,8 +8,9 @@
 //
 // Cross-cutting API behaviors owned here (per the brief §5 and the OpenAPI
 // spec in docs/contractor-handoff/):
-//   - Authorization: Cognito access token as a plain bearer (attended app,
-//     no device session — decision #4/#5 in docs/build-plan.md).
+//   - Authorization: Cognito ID token as a plain bearer (auth-contract §1 —
+//     the access token has no `email` claim and is rejected once
+//     REQUIRE_ID_TOKEN_BEARER flips on; getBearerToken supplies the ID token).
 //   - Idempotency-Key on every mutating request so retries are safe.
 //   - If-Match support for ETag-versioned updates (pass options.ifMatch).
 //   - RFC7807 problem+json parsing onto ManagerApiError with the stable
@@ -44,6 +45,17 @@ export function isMutating(method) {
 export function isPermissionError(err) {
   const status = err?.status;
   return status === 403 || status === 404;
+}
+
+// The poll-halt predicate: a background poller must STOP, not spin, on any of
+// 401/403/404. A permission error (isPermissionError) is a permanent wall; a
+// 401 reaching a poller is a real, persistent auth stop — the seam only throws
+// 401 AFTER its own refresh-then-retry gave up, so retrying every interval
+// would loop forever (an expired/revoked session, an audience-off env, or an
+// MFA gate that halts here rather than re-arming a doomed poll). The loop
+// re-arms when enabled/scope deps change (e.g. a re-auth remounts the tree).
+export function shouldHaltPolling(err) {
+  return err?.status === 401 || isPermissionError(err);
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -91,9 +103,11 @@ function withQuery(path, params) {
 
 export function createManagerApi({
   baseUrl,
-  // May be async: the auth layer refreshes a stale token before returning it
-  // (AuthContext.getFreshAccessToken).
-  getAccessToken,
+  // Returns the bearer — the Cognito ID token (auth-contract §1). May be
+  // async: the auth layer refreshes a stale token before returning it
+  // (AuthContext.getFreshIdToken). Accepts `{ forceRefresh }` for the 401
+  // retry below.
+  getBearerToken,
   // Called once per 401 response before the error throws — the app signs the
   // user out here so every screen inherits re-auth behavior from the seam
   // instead of hand-rolling it.
@@ -134,14 +148,14 @@ export function createManagerApi({
       headers.set('Content-Type', 'application/json');
     }
 
-    // getAccessToken may be async (a stale token silently refreshes inside
+    // getBearerToken may be async (a stale token silently refreshes inside
     // it). Refresh failure is non-terminal there — it resolves to the best
     // token held — so an accessor THROW here is an unexpected fault (a
     // provider bug, or literally no session). Surface the app's auth error
     // but keep the real cause for flattenErrorForLog.
     let bearer;
     try {
-      bearer = await getAccessToken?.();
+      bearer = await getBearerToken?.();
     } catch (accessorError) {
       throw new ManagerApiError('Sign-in required', {
         code: 'UNAUTHORIZED',
@@ -188,15 +202,19 @@ export function createManagerApi({
 
     if (response.ok) return payload;
 
-    // A 401 can straddle expiry (clock skew) or hit a token the silent
-    // refresh hadn't rotated yet. Before treating it as terminal, force ONE
-    // refresh and retry if that actually yields a different token — mirrors
-    // sentinel-ui's fetchWithAuth. If the token doesn't change (e.g. the
-    // backend is rejecting a valid token), fall through to onUnauthorized.
-    if (response.status === 401 && !retried && getAccessToken) {
+    const { code, message } = parseErrorPayload(payload);
+
+    // Silent refresh-then-retry is ONLY for a plain, refreshable 401 (expiry,
+    // clock skew, or a token the silent refresh hadn't rotated yet). Force ONE
+    // refresh and retry if that yields a different token — mirrors sentinel-ui's
+    // fetchWithAuth. A KNOWN auth code (MFA gate, ID_TOKEN_REQUIRED bearer/config
+    // fault) can't be fixed by a fresh token, so skip the retry and hand the code
+    // straight to the auth owner (auth-contract §2).
+    const refreshable401 = response.status === 401 && (!code || code === 'UNAUTHORIZED');
+    if (refreshable401 && !retried && getBearerToken) {
       let refreshed = null;
       try {
-        refreshed = await getAccessToken({ forceRefresh: true });
+        refreshed = await getBearerToken({ forceRefresh: true });
       } catch {
         refreshed = null;
       }
@@ -205,13 +223,14 @@ export function createManagerApi({
       }
     }
 
-    const { code, message } = parseErrorPayload(payload);
-
-    // Notify the auth owner so it can decide (threshold-gated) whether the
-    // session is dead. Pollers must stop on 401 (brief §5).
-    if (response.status === 401) {
+    // Notify the auth owner (with the code) for any auth-relevant failure so it
+    // can branch per §2: every 401, plus the terminal USER_ACCOUNT_INACTIVE 403.
+    // Pollers must stop on these (brief §5).
+    const authRelevant = response.status === 401
+      || (response.status === 403 && code === 'USER_ACCOUNT_INACTIVE');
+    if (authRelevant) {
       try {
-        onUnauthorized?.();
+        onUnauthorized?.({ code, status: response.status });
       } catch {
         // The sign-out hook must never mask the original error.
       }

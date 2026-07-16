@@ -58,6 +58,17 @@ test('refreshTokens posts the refresh grant to the bridge token endpoint', async
   }
 });
 
+test('pickBearerToken selects the ID token, never the access token', async () => {
+  const { pickBearerToken } = await import('./cognitoHostedUi.js');
+  // Both present: the ID token is the bearer (auth-contract §1).
+  expect(pickBearerToken({ id_token: 'id_1', access_token: 'acc_1' })).toBe('id_1');
+  // Strict: an access-token-only response yields no bearer (never falls back
+  // to the access token — that is the bug this closes).
+  expect(pickBearerToken({ access_token: 'acc_1' })).toBeNull();
+  expect(pickBearerToken({})).toBeNull();
+  expect(pickBearerToken(null)).toBeNull();
+});
+
 test('a non-JSON gateway error surfaces the HTTP status, not a SyntaxError', async () => {
   const { refreshTokens } = await import('./cognitoHostedUi.js');
   const originalFetch = globalThis.fetch;

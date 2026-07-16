@@ -22,6 +22,14 @@ const CODE_MESSAGES = {
   // Auth / access
   UNAUTHORIZED: 'Your session has expired. Please sign in again.',
   FORBIDDEN: 'You do not have access to do that.',
+  // MFA / session lifecycle (auth-contract §2). These are primarily routed as
+  // actions (authActions.js); the text here is the fallback if a screen surfaces
+  // the raw error so a code never leaks.
+  ID_TOKEN_REQUIRED: 'Your session needs to be refreshed. Please sign in again.',
+  MFA_REQUIRED: 'Multi-factor authentication is required. Complete setup in the SafePass Admin app, then return.',
+  MFA_TOTP_REQUIRED: 'An authenticator app is required for your role. Add one in the SafePass Admin app, then return.',
+  MFA_REAUTH_REQUIRED: 'Please sign in again to continue.',
+  USER_ACCOUNT_INACTIVE: 'Your account is inactive. Contact your SafePass administrator.',
   // Backend app-client gate (CLAUDE.md "authorization gate"): the action is
   // outside this app's policy by design — a config/product boundary, not a
   // retryable user error.
@@ -97,7 +105,7 @@ function normalizeStringError(message, fallback) {
   if (/missing cognito hosted ui configuration/i.test(normalized)) {
     return 'Sign-in is unavailable right now.';
   }
-  if (/invalid sign-in state|missing pkce verifier|token response missing access token|token exchange failed/i.test(normalized)) {
+  if (/invalid sign-in state|missing pkce verifier|token response missing (an )?(id|access) token|token exchange failed/i.test(normalized)) {
     return resolveFallback('signIn');
   }
   if (/access_denied/i.test(normalized)) {
