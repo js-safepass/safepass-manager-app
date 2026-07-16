@@ -9,9 +9,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#1c2033" />
-    <!-- CSP: deployed builds are served the authoritative policy via edge
-         headers (public/_headers); the Vite dev server gets an equivalent
-         <meta> CSP injected by src/main.jsx (dev-only, widened for HMR). -->
+    <!-- CSP: two layers. public/_headers carries the authoritative edge policy
+         (incl. header-only frame-ancestors); src/main.jsx injects an always-on
+         <meta> floor (dev + prod) so the app never has zero CSP if the header
+         isn't served. Keep the two in sync. -->
     <title>SafePass Manager</title>
   </head>
   <body>

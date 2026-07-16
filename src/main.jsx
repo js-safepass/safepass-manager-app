@@ -23,24 +23,30 @@ import { isNative } from './lib/platform.js'
 // No browser gate here (unlike the kiosk chassis): SafePass Manager is
 // deliberately usable from a desktop browser as well as the Capacitor shells.
 
-// Content Security Policy:
-//   - DEPLOYED (staging/production, and the native live web view that loads the
-//     hosted origin): served as a real edge header from public/_headers — the
-//     authoritative policy, and the ONLY place `frame-ancestors` can live (it is
-//     ignored in a <meta> tag).
-//   - DEV SERVER only: Vite doesn't serve _headers, so inject an equivalent
-//     <meta> CSP here, widened for the HMR websocket. Keeping this dev-only
-//     avoids a second, drifting production CSP.
-// Native is skipped regardless — the WebView isn't the Vite dev server and
-// inherits the hosted origin's header CSP.
-if (!isNative && import.meta.env.DEV) {
-  const host = window.location.host; // dev is pinned to 5273; HMR uses ws://host
+// Content Security Policy — two layers, always both present in production:
+//   1. public/_headers is the AUTHORITATIVE edge policy (Cloudflare Workers
+//      Static Assets). It carries the full set, incl. `frame-ancestors 'none'`
+//      + X-Frame-Options/X-Content-Type-Options/Referrer-Policy, which a <meta>
+//      tag CANNOT express.
+//   2. This <meta> tag is an ALWAYS-ON floor (dev AND prod) so the app is never
+//      left with ZERO CSP if the edge header isn't served (misconfig, a plain
+//      static host, `vite preview`). It omits only the header-only directives
+//      above. KEEP THESE DIRECTIVES IN SYNC WITH public/_headers.
+// Native is skipped — the WebView loads the hosted origin and inherits the
+// header CSP; a meta tag there would be redundant.
+if (!isNative) {
+  // Dev server only: widen connect-src for the Vite HMR websocket (dev is
+  // pinned to 5273; HMR dials ws://host). Prod uses the header's connect-src.
+  const host = window.location.host;
+  const connectSrc = import.meta.env.DEV
+    ? `connect-src 'self' https: http://${host} ws://${host}`
+    : "connect-src 'self' https:";
   const cspContent = [
     "default-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "script-src 'self'",
-    `connect-src 'self' https: http://${host} ws://${host}`,
+    connectSrc,
     "img-src 'self' data: blob: https:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
