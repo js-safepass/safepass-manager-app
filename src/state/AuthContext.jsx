@@ -12,11 +12,11 @@ import { AuthContext } from './useAuth.js';
 // drops them and the user signs in again; that's the accepted trade-off (no
 // Layer-2 device session — decision #4 in docs/build-plan.md).
 //
-// Token lifetime: the access token is short-lived; getFreshAccessToken
-// silently runs the refresh-token grant when it goes stale — front-desk
-// sessions run all day and must not be interrupted by forced re-logins. The
-// refresh rules (dedupe, throttle, rotation, race guard) live in
-// lib/freshToken.js where they're unit-tested.
+// Token lifetime: the bearer is the Cognito ID token (auth-contract §1) and is
+// short-lived; getFreshIdToken silently runs the refresh-token grant when it
+// goes stale — front-desk sessions run all day and must not be interrupted by
+// forced re-logins. The refresh rules (dedupe, throttle, rotation, race guard)
+// live in lib/freshToken.js where they're unit-tested.
 //
 // Resilience model ported from sentinel-ui via the mapping app (2026-07-13):
 // a refresh FAILURE is non-terminal (freshToken.js resolves to the best token

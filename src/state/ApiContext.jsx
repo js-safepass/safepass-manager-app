@@ -8,10 +8,11 @@ import { ApiContext } from './useApi.js';
 // managerApi.js directly — so auth wiring and the deferred DPoP retrofit
 // stay in one place.
 //
-// Real mode: tokens come from getFreshAccessToken (silent refresh inside);
-// the seam retries a 401 once with a forced refresh, then hands off to
-// AuthContext.onUnauthorized — threshold-gated there, so screens never
-// hand-roll re-auth and a lone transient 401 never ends the session.
+// Real mode: the bearer (the Cognito ID token) comes from getFreshIdToken
+// (silent refresh inside); the seam retries a 401 once with a forced refresh,
+// then hands the RFC-7807 code to AuthContext.onUnauthorized — which branches
+// per auth-contract §2 (MFA gate / re-auth / terminal) and threshold-gates a
+// plain expiry, so screens never hand-roll re-auth.
 //
 // VITE_MANAGER_MOCK=true (build var) swaps in the stateful mock: the entire
 // app must remain drivable with no backend (seed bundle BOOTSTRAP step 3).
