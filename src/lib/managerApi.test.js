@@ -26,7 +26,7 @@ test('managerFetch sends bearer, request id, and auto Idempotency-Key on mutatio
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     await api.createVisitor({ first_name: 'Jane' });
 
@@ -47,7 +47,7 @@ test('managerFetch does not send Idempotency-Key on GETs', async () => {
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     await api.listVisitors({ org_id: 'org_1', name: 'doe', cursor: undefined });
 
@@ -65,7 +65,7 @@ test('updateVisitor sends If-Match as the plain integer version string', async (
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     // The sentinel-ui convention: If-Match carries data.version as-is
     // (no quotes, no W/ prefix) — the backend compares versions, not ETags.
@@ -92,7 +92,7 @@ test('RFC7807 problem+json errors surface code/status/detail on ManagerApiError'
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     const error = await api.checkin('visitor_1', {}).catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);
@@ -117,7 +117,7 @@ test('Retry-After header lands on error.retryAfter (seconds)', async () => {
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
     });
     const error = await api.checkin('visitor_1', {}).catch((e) => e);
     expect(error.retryAfter).toBe(7);
@@ -126,13 +126,13 @@ test('Retry-After header lands on error.retryAfter (seconds)', async () => {
   }
 });
 
-test('missing access token throws UNAUTHORIZED without hitting the network', async () => {
+test('missing bearer token throws UNAUTHORIZED without hitting the network', async () => {
   const originalFetch = globalThis.fetch;
   const calls = captureFetch(jsonResponse(200, { data: {} }));
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => null,
+      getBearerToken: () => null,
     });
     const error = await api.whoami().catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);
@@ -149,7 +149,7 @@ test('attachProof hook sets the DPoP header when provided (deferred-hardening se
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => 'jwt-token',
+      getBearerToken: () => 'jwt-token',
       attachProof: async ({ method, url, bearer }) => `proof:${method}:${url}:${bearer ? 'y' : 'n'}`,
     });
     await api.whoami();
@@ -186,7 +186,7 @@ test('401 forces one refresh and retries with the new token and the SAME idempot
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: ({ forceRefresh } = {}) => {
+      getBearerToken: ({ forceRefresh } = {}) => {
         if (forceRefresh) held = 'fresh-token';
         return Promise.resolve(held);
       },
@@ -218,7 +218,7 @@ test('401 with an unchanged token skips the retry and notifies onUnauthorized on
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => Promise.resolve('same-token'), // forceRefresh yields no change
+      getBearerToken: () => Promise.resolve('same-token'), // forceRefresh yields no change
       onUnauthorized: () => { unauthorized += 1; },
     });
     const error = await api.whoami().catch((e) => e);
@@ -237,7 +237,7 @@ test('an accessor throw surfaces UNAUTHORIZED but preserves the cause for loggin
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      getAccessToken: () => Promise.reject(boom),
+      getBearerToken: () => Promise.reject(boom),
     });
     const error = await api.whoami().catch((e) => e);
     expect(error).toBeInstanceOf(ManagerApiError);

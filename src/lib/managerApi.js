@@ -8,8 +8,9 @@
 //
 // Cross-cutting API behaviors owned here (per the brief §5 and the OpenAPI
 // spec in docs/contractor-handoff/):
-//   - Authorization: Cognito access token as a plain bearer (attended app,
-//     no device session — decision #4/#5 in docs/build-plan.md).
+//   - Authorization: Cognito ID token as a plain bearer (auth-contract §1 —
+//     the access token has no `email` claim and is rejected once
+//     REQUIRE_ID_TOKEN_BEARER flips on; getBearerToken supplies the ID token).
 //   - Idempotency-Key on every mutating request so retries are safe.
 //   - If-Match support for ETag-versioned updates (pass options.ifMatch).
 //   - RFC7807 problem+json parsing onto ManagerApiError with the stable
@@ -91,9 +92,11 @@ function withQuery(path, params) {
 
 export function createManagerApi({
   baseUrl,
-  // May be async: the auth layer refreshes a stale token before returning it
-  // (AuthContext.getFreshAccessToken).
-  getAccessToken,
+  // Returns the bearer — the Cognito ID token (auth-contract §1). May be
+  // async: the auth layer refreshes a stale token before returning it
+  // (AuthContext.getFreshIdToken). Accepts `{ forceRefresh }` for the 401
+  // retry below.
+  getBearerToken,
   // Called once per 401 response before the error throws — the app signs the
   // user out here so every screen inherits re-auth behavior from the seam
   // instead of hand-rolling it.
@@ -134,14 +137,14 @@ export function createManagerApi({
       headers.set('Content-Type', 'application/json');
     }
 
-    // getAccessToken may be async (a stale token silently refreshes inside
+    // getBearerToken may be async (a stale token silently refreshes inside
     // it). Refresh failure is non-terminal there — it resolves to the best
     // token held — so an accessor THROW here is an unexpected fault (a
     // provider bug, or literally no session). Surface the app's auth error
     // but keep the real cause for flattenErrorForLog.
     let bearer;
     try {
-      bearer = await getAccessToken?.();
+      bearer = await getBearerToken?.();
     } catch (accessorError) {
       throw new ManagerApiError('Sign-in required', {
         code: 'UNAUTHORIZED',
@@ -193,10 +196,10 @@ export function createManagerApi({
     // refresh and retry if that actually yields a different token — mirrors
     // sentinel-ui's fetchWithAuth. If the token doesn't change (e.g. the
     // backend is rejecting a valid token), fall through to onUnauthorized.
-    if (response.status === 401 && !retried && getAccessToken) {
+    if (response.status === 401 && !retried && getBearerToken) {
       let refreshed = null;
       try {
-        refreshed = await getAccessToken({ forceRefresh: true });
+        refreshed = await getBearerToken({ forceRefresh: true });
       } catch {
         refreshed = null;
       }

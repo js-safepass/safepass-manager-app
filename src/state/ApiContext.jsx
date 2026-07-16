@@ -16,17 +16,19 @@ import { ApiContext } from './useApi.js';
 // VITE_MANAGER_MOCK=true (build var) swaps in the stateful mock: the entire
 // app must remain drivable with no backend (seed bundle BOOTSTRAP step 3).
 export function ApiProvider({ children }) {
-  const { getFreshAccessToken, onUnauthorized } = useAuth();
+  const { getFreshIdToken, onUnauthorized } = useAuth();
   const useMock = import.meta.env.VITE_MANAGER_MOCK === 'true';
 
   const api = useMemo(() => {
     if (useMock) return createMockManagerApi();
     return createManagerApi({
       baseUrl: import.meta.env.VITE_MANAGER_API_BASE,
-      getAccessToken: getFreshAccessToken,
+      // The bearer is the Cognito ID token (auth-contract §1); the accessor
+      // silently refreshes it and rotates the id_token on refresh.
+      getBearerToken: getFreshIdToken,
       onUnauthorized,
     });
-  }, [useMock, getFreshAccessToken, onUnauthorized]);
+  }, [useMock, getFreshIdToken, onUnauthorized]);
 
   return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
 }

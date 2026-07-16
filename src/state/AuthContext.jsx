@@ -36,9 +36,11 @@ export function AuthProvider({ children }) {
   const devToken = import.meta.env.VITE_DEV_MANAGER_JWT || 'dev';
 
   // Tokens live in a ref, not state: they rotate silently on refresh and
-  // nothing should re-render on rotation. `status` drives rendering.
+  // nothing should re-render on rotation. `status` drives rendering. The
+  // bearer we carry is the Cognito ID token (auth-contract §1); the refresh
+  // token stays in memory only (never web storage — XSS-exfiltratable).
   const tokensRef = useRef({
-    accessToken: isDevMode ? devToken : null,
+    idToken: isDevMode ? devToken : null,
     refreshToken: null,
   });
 
@@ -55,8 +57,8 @@ export function AuthProvider({ children }) {
   const authFailuresRef = useRef([]);
 
   const signOut = useCallback(({ hosted = true } = {}) => {
-    const hadToken = Boolean(tokensRef.current.accessToken);
-    tokensRef.current = { accessToken: null, refreshToken: null };
+    const hadToken = Boolean(tokensRef.current.idToken);
+    tokensRef.current = { idToken: null, refreshToken: null };
     freshTokenRef.current = null; // drop the provider's in-flight/throttle state
     authFailuresRef.current = [];
     setCognitoUserSub(null);
@@ -79,7 +81,7 @@ export function AuthProvider({ children }) {
     if (isDevMode && !token) {
       // Restore the dev bearer so the accessor stops returning null after a
       // dev sign-out (the accessor does not fall back to devToken).
-      tokensRef.current = { accessToken: devToken, refreshToken: null };
+      tokensRef.current = { idToken: devToken, refreshToken: null };
       setCognitoUserSub(getJwtSub(devToken));
       setStatus('signed_in');
       setError(null);
@@ -92,7 +94,7 @@ export function AuthProvider({ children }) {
       setError(getUserFacingError('Access token is required', 'signIn'));
       return;
     }
-    tokensRef.current = { accessToken: token, refreshToken: refreshToken || null };
+    tokensRef.current = { idToken: token, refreshToken: refreshToken || null };
     authFailuresRef.current = [];
     setCognitoUserSub(getJwtSub(token));
     setStatus('signed_in');
@@ -103,8 +105,8 @@ export function AuthProvider({ children }) {
   // is NON-TERMINAL — the provider resolves to the best token still held and
   // never signs out here; the 401 path owns that decision. `forceRefresh` is
   // used by managerApi's one-shot 401 retry.
-  const getFreshAccessToken = useCallback((opts) => {
-    if (isDevMode) return Promise.resolve(tokensRef.current.accessToken);
+  const getFreshIdToken = useCallback((opts) => {
+    if (isDevMode) return Promise.resolve(tokensRef.current.idToken);
     if (!freshTokenRef.current) {
       // Lazily built on first use (not during render): the provider closes
       // over the token ref and owns the dedupe/throttle/rotation rules.
@@ -133,8 +135,8 @@ export function AuthProvider({ children }) {
   //     hosted redirect: the SSO cookie likely still allows one-click re-entry.
   const onUnauthorized = useCallback(() => {
     if (isDevMode) return; // dev bypass never expires
-    const { accessToken } = tokensRef.current;
-    if (accessToken && isJwtFresh(accessToken)) return; // valid token rejected: authz/config, not expiry
+    const { idToken } = tokensRef.current;
+    if (idToken && isJwtFresh(idToken)) return; // valid token rejected: authz/config, not expiry
 
     const nowMs = Date.now();
     const recent = authFailuresRef.current.filter((t) => nowMs - t < AUTH_FAILURE_WINDOW_MS);
@@ -153,10 +155,10 @@ export function AuthProvider({ children }) {
       error,
       signIn,
       signOut,
-      getFreshAccessToken,
+      getFreshIdToken,
       onUnauthorized,
     }),
-    [cognitoUserSub, status, error, signIn, signOut, getFreshAccessToken, onUnauthorized],
+    [cognitoUserSub, status, error, signIn, signOut, getFreshIdToken, onUnauthorized],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
