@@ -23,24 +23,33 @@ import { isNative } from './lib/platform.js'
 // No browser gate here (unlike the kiosk chassis): SafePass Manager is
 // deliberately usable from a desktop browser as well as the Capacitor shells.
 
-// Inject Content Security Policy for web deployments.
-// Skip on native — Capacitor's WKWebView/WebView already isolates content.
-// (Historically custom capacitor:// serving origins also broke CSP 'self'
-// resolution; this shell serves from the hosted https origin, but the skip
-// stays: the native web view is already the isolation boundary.)
+// Content Security Policy — two layers, always both present in production:
+//   1. public/_headers is the AUTHORITATIVE edge policy (Cloudflare Workers
+//      Static Assets). It carries the full set, incl. `frame-ancestors 'none'`
+//      + X-Frame-Options/X-Content-Type-Options/Referrer-Policy, which a <meta>
+//      tag CANNOT express.
+//   2. This <meta> tag is an ALWAYS-ON floor (dev AND prod) so the app is never
+//      left with ZERO CSP if the edge header isn't served (misconfig, a plain
+//      static host, `vite preview`). It omits only the header-only directives
+//      above. KEEP THESE DIRECTIVES IN SYNC WITH public/_headers.
+// Native is skipped — the WebView loads the hosted origin and inherits the
+// header CSP; a meta tag there would be redundant.
 if (!isNative) {
-  // Derive the dev origin from the actual location instead of hardcoding the
-  // port (dev is pinned to 5273 in vite.config.js, but CAP_SERVER_URL and
-  // preview runs can differ).
-  const devConnectSrc = import.meta.env.DEV
-    ? ` http://${window.location.host} ws://${window.location.host}`
-    : '';
+  // Dev server only: widen connect-src for the Vite HMR websocket (dev is
+  // pinned to 5273; HMR dials ws://host). Prod uses the header's connect-src.
+  const host = window.location.host;
+  const connectSrc = import.meta.env.DEV
+    ? `connect-src 'self' https: http://${host} ws://${host}`
+    : "connect-src 'self' https:";
   const cspContent = [
     "default-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
     "script-src 'self'",
-    `connect-src 'self' https://*${devConnectSrc}`,
-    "img-src 'self' data: blob: https://*",
+    connectSrc,
+    "img-src 'self' data: blob: https:",
     "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
   ].join('; ') + ';';
 
   const cspMeta = document.createElement('meta');

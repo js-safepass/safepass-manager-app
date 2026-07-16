@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isPermissionError } from './managerApi.js';
+import { shouldHaltPolling } from './managerApi.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -7,11 +7,14 @@ const nowIso = () => new Date().toISOString();
  * Scoped polling loop with hard cancellation semantics.
  * Prevents in-flight poll completions from re-scheduling after unmount/deactivation.
  *
- * Halt-on-permission-error: if `poll` rejects with a 403/404 (see
- * isPermissionError), the loop halts until `enabled` flips off→on or
+ * Halt-on-auth/permission-error: if `poll` rejects with a 401/403/404 (see
+ * shouldHaltPolling), the loop halts until `enabled` flips off→on or
  * intervalMs/scope deps change (which re-keys the run). Callers who want
- * this should rethrow permission errors from their poll callback after any
- * local logging. Other errors are tracked in stats but don't halt — the
+ * this should rethrow those errors from their poll callback after any local
+ * logging. 401 is included because the request seam only surfaces a 401 after
+ * its own refresh-then-retry gave up, so it is a persistent auth stop (expired/
+ * revoked session, audience-off env, or an MFA gate) — retrying every interval
+ * would spin forever. Other errors are tracked in stats but don't halt — the
  * backend may be transiently unhappy and we want to recover.
  */
 export function useScopedPolling({
@@ -141,7 +144,7 @@ export function useScopedPolling({
           lastRunOkAt: nowIso(),
         }));
       } catch (err) {
-        const halted = isPermissionError(err);
+        const halted = shouldHaltPolling(err);
         if (halted) haltedRef.current = true;
         updateStats((prev) => ({
           ...prev,

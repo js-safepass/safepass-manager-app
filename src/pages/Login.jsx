@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Container, Row, Spinner } from 'react-bootstrap';
 import AuthBrand from '../components/AuthBrand.jsx';
 import { useAuth } from '../state/useAuth.js';
-import { buildAuthorizeUrl, exchangeCodeForToken } from '../lib/cognitoHostedUi.js';
+import { buildAuthorizeUrl, exchangeCodeForToken, pickBearerToken } from '../lib/cognitoHostedUi.js';
 import { generateCodeChallenge, generateCodeVerifier } from '../lib/pkce.js';
 import { getUserFacingError } from '../lib/userErrors.js';
+import { consumeReturnTo, stashReturnTo } from '../lib/returnPath.js';
 
 const storageKeys = {
   verifier: 'manager_pkce_verifier',
@@ -69,12 +70,17 @@ const Login = () => {
         const tokenResponse = await exchangeCodeForToken({ code, codeVerifier: verifier });
         sessionStorage.removeItem(storageKeys.state);
         sessionStorage.removeItem(storageKeys.verifier);
-        window.history.replaceState({}, document.title, '/');
-        const accessToken = tokenResponse.access_token || tokenResponse.id_token;
-        if (!accessToken) {
-          throw new Error('Token response missing access token.');
+        // Resume at the screen the user was on before a re-auth redirect
+        // (stashed in handleHostedLogin); default to root on a first sign-in.
+        const returnTo = consumeReturnTo();
+        window.history.replaceState({}, document.title, returnTo);
+        // Send the ID token as the bearer (auth-contract §1) — one source:
+        // lib/cognitoHostedUi.pickBearerToken.
+        const bearer = pickBearerToken(tokenResponse);
+        if (!bearer) {
+          throw new Error('Token response missing an ID token.');
         }
-        await signIn({ token: accessToken, refreshToken: tokenResponse.refresh_token });
+        await signIn({ token: bearer, refreshToken: tokenResponse.refresh_token });
       } catch (exchangeError) {
         setLocalError(getUserFacingError(exchangeError, 'signIn'));
       } finally {
@@ -94,6 +100,9 @@ const Login = () => {
       const challenge = await generateCodeChallenge(verifier);
       sessionStorage.setItem(storageKeys.state, state);
       sessionStorage.setItem(storageKeys.verifier, verifier);
+      // Preserve the current screen across the redirect so a mid-session
+      // re-auth resumes where the user was (no-op/root on a first sign-in).
+      stashReturnTo();
       const url = buildAuthorizeUrl({ state, codeChallenge: challenge });
       // Navigate the (web view's) window itself — Cognito redirects back to
       // this same origin's /auth/callback, caught by the effect above.

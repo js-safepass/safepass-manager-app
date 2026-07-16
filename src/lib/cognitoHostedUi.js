@@ -110,9 +110,34 @@ async function postToTokenEndpoint(params, fallbackMessage) {
   return payload;
 }
 
+// Which token the app sends as `Authorization: Bearer` — the Cognito ID token,
+// NOT the access token. This is the SINGLE swap point for "what is the bearer":
+// both the initial authorization-code exchange (pages/Login.jsx) and the
+// refresh grant (lib/freshToken.js) select the bearer through here, so there is
+// exactly one place to reason about it.
+//
+// Why the ID token (auth-contract §1, DataManager): the access token carries no
+// `email` claim, and the backend's MFA enforcement resolves enrollment by
+// email — an access token is unenforceable, which was the fleet-wide MFA
+// fail-open. Once `REQUIRE_ID_TOKEN_BEARER` flips on per environment, an access
+// token sent as a user bearer is rejected with 401 `ID_TOKEN_REQUIRED`. The
+// backend accepts the ID token today (the access-token rejection is flag-gated,
+// currently off), so this switch is safe before the flip.
+//
+// Strict on purpose: NEVER fall back to the access token. This client always
+// requests the `openid` scope, so Cognito always returns an id_token on both
+// the code and refresh grants; a missing id_token is an error the callers
+// handle (Login throws, freshToken keeps the prior bearer and logs) rather than
+// silently sending the access token — which is exactly the bug this switch
+// closes.
+export function pickBearerToken(tokenResponse) {
+  return tokenResponse?.id_token || null;
+}
+
 // Refresh-token grant. Cognito does not rotate the refresh token on this grant
 // by default — callers keep their existing refresh token unless the response
-// carries a new one.
+// carries a new one. The response includes a fresh `id_token` alongside the
+// `access_token`, so the bearer (pickBearerToken) rotates on refresh too.
 export function refreshTokens({ refreshToken }) {
   return postToTokenEndpoint(
     { grant_type: 'refresh_token', refresh_token: refreshToken },
