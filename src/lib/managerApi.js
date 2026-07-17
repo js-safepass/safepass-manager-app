@@ -51,9 +51,8 @@ export function isPermissionError(err) {
 // 401/403/404. A permission error (isPermissionError) is a permanent wall; a
 // 401 reaching a poller is a real, persistent auth stop — the seam only throws
 // 401 AFTER its own refresh-then-retry gave up, so retrying every interval
-// would loop forever (an expired/revoked session, an audience-off env, or an
-// MFA gate that halts here rather than re-arming a doomed poll). The loop
-// re-arms when enabled/scope deps change (e.g. a re-auth remounts the tree).
+// would loop forever (an expired/revoked session or an audience-off env). The
+// loop re-arms when enabled/scope deps change (e.g. a re-auth remounts the tree).
 export function shouldHaltPolling(err) {
   return err?.status === 401 || isPermissionError(err);
 }
@@ -207,7 +206,7 @@ export function createManagerApi({
     // Silent refresh-then-retry is ONLY for a plain, refreshable 401 (expiry,
     // clock skew, or a token the silent refresh hadn't rotated yet). Force ONE
     // refresh and retry if that yields a different token — mirrors sentinel-ui's
-    // fetchWithAuth. A KNOWN auth code (MFA gate, ID_TOKEN_REQUIRED bearer/config
+    // fetchWithAuth. A KNOWN auth code (e.g. an ID_TOKEN_REQUIRED bearer/config
     // fault) can't be fixed by a fresh token, so skip the retry and hand the code
     // straight to the auth owner (auth-contract §2).
     const refreshable401 = response.status === 401 && (!code || code === 'UNAUTHORIZED');

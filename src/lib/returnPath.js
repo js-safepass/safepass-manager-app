@@ -1,7 +1,7 @@
 // Return-path custody for the "resume" half of 401 -> re-auth -> resume
-// (auth-contract §5). When a live session starts 401-ing (token expiry, a
-// server-side global sign-out on password change/revocation, or an
-// MFA_REAUTH_REQUIRED), the user is bounced through the Hosted-UI redirect,
+// (auth-contract §5). When a live session starts 401-ing (token expiry or a
+// server-side global sign-out on password change/revocation), the user is
+// bounced through the Hosted-UI redirect,
 // which unloads the SPA. We stash where they were just before the redirect and
 // restore it on the callback, so they land back on the same screen instead of
 // the dashboard — the in-flight request itself can't survive a full-page

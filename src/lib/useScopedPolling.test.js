@@ -13,9 +13,9 @@ function authError(status, code) {
   return err;
 }
 
-test('a 401 (e.g. an MFA gate) halts the loop — it does not spin every interval', async () => {
+test('a 401 (expired/revoked session) halts the loop — it does not spin every interval', async () => {
   vi.useFakeTimers();
-  const poll = vi.fn(async () => { throw authError(401, 'MFA_REQUIRED'); });
+  const poll = vi.fn(async () => { throw authError(401, 'UNAUTHORIZED'); });
 
   renderHook(() =>
     useScopedPolling({ channel: 'test-401', poll, intervalMs: 1000, requireVisible: false }));
