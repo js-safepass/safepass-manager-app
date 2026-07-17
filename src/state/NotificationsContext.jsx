@@ -7,7 +7,7 @@ import { NotificationsContext } from './useNotifications.js';
 // Notification feed state shared by the inbox page and the shell's unread
 // badge. Polling for now (15s foreground via useScopedPolling — pauses when
 // the tab is hidden, halts on 401/403/404 via shouldHaltPolling, so an
-// MFA-gated/expired session can't spin a background 401 loop). The SSE
+// expired/revoked session can't spin a background 401 loop). The SSE
 // stream-ticket layer from
 // sentinel-ui's notificationsProvider lands in Phase 3 behind this same
 // context, so consumers won't change.

@@ -13,7 +13,7 @@ const nowIso = () => new Date().toISOString();
  * this should rethrow those errors from their poll callback after any local
  * logging. 401 is included because the request seam only surfaces a 401 after
  * its own refresh-then-retry gave up, so it is a persistent auth stop (expired/
- * revoked session, audience-off env, or an MFA gate) — retrying every interval
+ * revoked session or audience-off env) — retrying every interval
  * would spin forever. Other errors are tracked in stats but don't halt — the
  * backend may be transiently unhappy and we want to recover.
  */

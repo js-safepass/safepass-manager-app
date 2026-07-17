@@ -1,28 +1,15 @@
 import { Alert, Button, Spinner } from 'react-bootstrap';
 import { useSession } from '../state/useSession.js';
 import { useAuth } from '../state/useAuth.js';
-import MfaRequiredNotice from './MfaRequiredNotice.jsx';
 
 // Holds the app back until the session bootstrap resolves, and renders the
-// no-access / MFA-required / error states as first-class screens (brief §5:
-// "render a no-access state rather than retrying into a wall").
+// no-access / error states as first-class screens (brief §5: "render a
+// no-access state rather than retrying into a wall").
 export default function SessionGate({ children }) {
   const { sessionStatus, sessionError, refreshSession } = useSession();
   const { signOut } = useAuth();
 
   if (sessionStatus === 'ready') return children;
-
-  // Trimmed, MFA-gated whoami (auth-contract §3): there is no authz surface yet
-  // — render the MFA-completion screen instead of the app.
-  if (sessionStatus === 'mfa_required') {
-    return (
-      <MfaRequiredNotice
-        variant="enroll"
-        onRefresh={refreshSession}
-        onSignOut={() => signOut()}
-      />
-    );
-  }
 
   return (
     <div className="d-flex align-items-center justify-content-center min-vh-100">

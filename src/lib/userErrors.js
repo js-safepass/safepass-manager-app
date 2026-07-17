@@ -22,13 +22,11 @@ const CODE_MESSAGES = {
   // Auth / access
   UNAUTHORIZED: 'Your session has expired. Please sign in again.',
   FORBIDDEN: 'You do not have access to do that.',
-  // MFA / session lifecycle (auth-contract §2). These are primarily routed as
-  // actions (authActions.js); the text here is the fallback if a screen surfaces
-  // the raw error so a code never leaks.
+  // Session lifecycle (auth-contract §2). Primarily routed as actions
+  // (authActions.js); the text here is the fallback if a screen surfaces the
+  // raw error so a code never leaks. MFA is enforced by Cognito at the pool
+  // level, so no MFA_* code reaches the app.
   ID_TOKEN_REQUIRED: 'Your session needs to be refreshed. Please sign in again.',
-  MFA_REQUIRED: 'Multi-factor authentication is required. Complete setup in the SafePass Admin app, then return.',
-  MFA_TOTP_REQUIRED: 'An authenticator app is required for your role. Add one in the SafePass Admin app, then return.',
-  MFA_REAUTH_REQUIRED: 'Please sign in again to continue.',
   USER_ACCOUNT_INACTIVE: 'Your account is inactive. Contact your SafePass administrator.',
   // Backend app-client gate (CLAUDE.md "authorization gate"): the action is
   // outside this app's policy by design — a config/product boundary, not a
