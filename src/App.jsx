@@ -5,7 +5,6 @@ import { SessionProvider } from './state/SessionContext.jsx';
 import { NotificationsProvider } from './state/NotificationsContext.jsx';
 import FlashOverlay from './components/FlashOverlay.jsx';
 import SessionGate from './components/SessionGate.jsx';
-import AuthActionOverlay from './components/AuthActionOverlay.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -34,9 +33,6 @@ export default function App() {
   return (
     <ApiProvider>
       <SessionProvider>
-        {/* Mid-session MFA gate overlay — sits above SessionGate so an
-            MFA_REQUIRED 401 raised while the app is running still surfaces. */}
-        <AuthActionOverlay />
         <SessionGate>
           <NotificationsProvider>
             <BrowserRouter>

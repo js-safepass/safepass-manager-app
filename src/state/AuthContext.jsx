@@ -4,7 +4,7 @@ import { getJwtSub, isJwtFresh } from '../lib/jwtUtil.js';
 import { flattenErrorForLog } from '../lib/errorLog.js';
 import { buildLogoutUrl, refreshTokens } from '../lib/cognitoHostedUi.js';
 import { createFreshTokenProvider } from '../lib/freshToken.js';
-import { AUTH_ACTION, isMfaAction, resolveAuthAction } from '../lib/authActions.js';
+import { AUTH_ACTION, resolveAuthAction } from '../lib/authActions.js';
 import { AuthContext } from './useAuth.js';
 
 // Auth state for an attended app: Cognito tokens live in memory only (never
@@ -52,11 +52,6 @@ export function AuthProvider({ children }) {
   );
   const [status, setStatus] = useState(() => (isDevMode ? 'signed_in' : 'signed_out'));
   const [error, setError] = useState(null);
-  // A pending MFA gate the user must resolve elsewhere (this app has no enroll
-  // UI): { action: 'mfa_enroll' | 'mfa_totp', code }. Drives the mid-session
-  // AuthActionOverlay. Sign-out / terminal codes flip `status` instead, so this
-  // stays null for them.
-  const [authAction, setAuthAction] = useState(null);
 
   const freshTokenRef = useRef(null);
   // Timestamps of recent 401s (see onUnauthorized's threshold gate).
@@ -70,7 +65,6 @@ export function AuthProvider({ children }) {
     setCognitoUserSub(null);
     setStatus('signed_out');
     setError(null);
-    setAuthAction(null);
     // End the Cognito Hosted UI session too, so "sign out" means signed out
     // — but only when the user explicitly asked (hosted=true). API-driven
     // sign-outs skip it: the SSO cookie may still be valid and lets the user
@@ -128,8 +122,6 @@ export function AuthProvider({ children }) {
     return freshTokenRef.current(opts);
   }, [isDevMode]);
 
-  const clearAuthAction = useCallback(() => setAuthAction(null), []);
-
   // Called by the API seam on any auth-relevant failure, WITH the RFC-7807
   // code ({ code, status }). Branch on the code (auth-contract §2) — each drives
   // a distinct recovery. `resolveAuthAction` owns the mapping.
@@ -137,14 +129,6 @@ export function AuthProvider({ children }) {
     if (isDevMode) return; // dev bypass never expires
     const code = info?.code;
     const action = resolveAuthAction(code);
-
-    // MFA gate: the user is authenticated but must remediate elsewhere (this
-    // app has no enroll UI). Surface the notice; do NOT sign out — the session
-    // is otherwise valid and enroll paths stay reachable from the admin app.
-    if (isMfaAction(action)) {
-      setAuthAction({ action, code });
-      return;
-    }
 
     // Terminal: account deactivated/archived. The backend already global-signed
     // out; end the local session with a clear reason (no re-entry).
@@ -154,11 +138,11 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Re-auth: the session predates MFA enrollment (MFA_REAUTH_REQUIRED) or was
-    // revoked server-side; ID_TOKEN_REQUIRED lands here too (a bearer/config
-    // fault we log for diagnosis). Sign out LOCALLY and let the user re-login —
-    // Login stashed the return path, so they resume where they were. No hosted
-    // redirect: the SSO cookie likely allows one-click re-entry.
+    // Re-auth: the session was revoked server-side (a global sign-out), or
+    // ID_TOKEN_REQUIRED fired (a bearer/config fault we log for diagnosis).
+    // Sign out LOCALLY and let the user re-login — Login stashed the return
+    // path, so they resume where they were. No hosted redirect: the SSO cookie
+    // likely allows one-click re-entry.
     if (action === AUTH_ACTION.REAUTH) {
       if (code === 'ID_TOKEN_REQUIRED') {
         // Should not happen now the bearer is the ID token — flag it loudly.
@@ -198,10 +182,8 @@ export function AuthProvider({ children }) {
       signOut,
       getFreshIdToken,
       onUnauthorized,
-      authAction,
-      clearAuthAction,
     }),
-    [cognitoUserSub, status, error, signIn, signOut, getFreshIdToken, onUnauthorized, authAction, clearAuthAction],
+    [cognitoUserSub, status, error, signIn, signOut, getFreshIdToken, onUnauthorized],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
