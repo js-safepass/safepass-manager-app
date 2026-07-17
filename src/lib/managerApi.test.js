@@ -165,9 +165,9 @@ test('isMutating classifies methods', () => {
   expect(isMutating('GET')).toBe(false);
 });
 
-test('shouldHaltPolling stops a poller on 401/403/404 (incl. an MFA 401), not on transient errors', () => {
-  // 401 is the fix: an MFA-gated / expired / revoked session must not spin.
-  expect(shouldHaltPolling({ status: 401, code: 'MFA_REQUIRED' })).toBe(true);
+test('shouldHaltPolling stops a poller on 401/403/404, not on transient errors', () => {
+  // 401 is the fix: an expired / revoked session must not spin.
+  expect(shouldHaltPolling({ status: 401, code: 'ID_TOKEN_REQUIRED' })).toBe(true);
   expect(shouldHaltPolling({ status: 401, code: 'UNAUTHORIZED' })).toBe(true);
   // Existing permission-wall behavior is preserved.
   expect(shouldHaltPolling({ status: 403 })).toBe(true);
@@ -246,13 +246,13 @@ test('401 with an unchanged token skips the retry and notifies onUnauthorized on
   }
 });
 
-test('a known auth code (MFA) skips the refresh-retry and hands the code to onUnauthorized', async () => {
+test('a known auth code (ID_TOKEN_REQUIRED) skips the refresh-retry and hands the code to onUnauthorized', async () => {
   const originalFetch = globalThis.fetch;
   let fetches = 0;
   globalThis.fetch = async () => {
     fetches += 1;
     return new Response(
-      JSON.stringify({ title: 'Unauthorized', status: 401, code: 'MFA_REAUTH_REQUIRED' }),
+      JSON.stringify({ title: 'Unauthorized', status: 401, code: 'ID_TOKEN_REQUIRED' }),
       { status: 401, headers: { 'content-type': 'application/problem+json' } },
     );
   };
@@ -261,8 +261,8 @@ test('a known auth code (MFA) skips the refresh-retry and hands the code to onUn
   try {
     const api = createManagerApi({
       baseUrl: 'https://api.local',
-      // A forced refresh WOULD yield a different token — but an MFA code isn't
-      // refreshable, so the seam must not even try.
+      // A forced refresh WOULD yield a different token — but a bearer/config
+      // fault isn't refreshable, so the seam must not even try.
       getBearerToken: ({ forceRefresh } = {}) => {
         if (forceRefresh) refreshes += 1;
         return Promise.resolve(forceRefresh ? 'fresh' : 'stale');
@@ -270,10 +270,10 @@ test('a known auth code (MFA) skips the refresh-retry and hands the code to onUn
       onUnauthorized: (info) => { seen.push(info); },
     });
     const error = await api.whoami().catch((e) => e);
-    expect(error.code).toBe('MFA_REAUTH_REQUIRED');
+    expect(error.code).toBe('ID_TOKEN_REQUIRED');
     expect(fetches).toBe(1);   // no wasted retry
     expect(refreshes).toBe(0); // never forced a refresh for a non-refreshable code
-    expect(seen).toEqual([{ code: 'MFA_REAUTH_REQUIRED', status: 401 }]);
+    expect(seen).toEqual([{ code: 'ID_TOKEN_REQUIRED', status: 401 }]);
   } finally {
     globalThis.fetch = originalFetch;
   }
