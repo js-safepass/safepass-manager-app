@@ -83,3 +83,34 @@ test('a non-JSON gateway error surfaces the HTTP status, not a SyntaxError', asy
     globalThis.fetch = originalFetch;
   }
 });
+
+test('token-endpoint failures carry machine-readable status + OAuth error code', async () => {
+  const { refreshTokens } = await import('./cognitoHostedUi.js');
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ error: 'invalid_grant' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    });
+  try {
+    await expect(refreshTokens({ refreshToken: 'rt_dead' })).rejects.toMatchObject({
+      status: 400,
+      oauthError: 'invalid_grant',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('isDefinitiveRefreshFailure: dead refresh token yes; gateway/network blips no', async () => {
+  const { isDefinitiveRefreshFailure } = await import('./cognitoHostedUi.js');
+  // invalid_grant = the refresh token is revoked/expired — renewal can never
+  // succeed again; the 401 path may treat the session as dead.
+  expect(isDefinitiveRefreshFailure({ oauthError: 'invalid_grant', status: 400 })).toBe(true);
+  expect(isDefinitiveRefreshFailure({ oauthError: 'invalid_client', status: 400 })).toBe(true);
+  // A bridge/gateway error page (no OAuth code) or a plain network failure is
+  // transient — it must NOT be allowed to force-sign-out a working session.
+  expect(isDefinitiveRefreshFailure({ oauthError: null, status: 502 })).toBe(false);
+  expect(isDefinitiveRefreshFailure(new TypeError('Failed to fetch'))).toBe(false);
+  expect(isDefinitiveRefreshFailure(undefined)).toBe(false);
+});

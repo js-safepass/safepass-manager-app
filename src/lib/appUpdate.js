@@ -22,7 +22,7 @@ export const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 // Reloads toward a single deployed build id are capped at this many attempts.
 // Without a cap, a reload that never takes effect (a no-op / interrupted reload
 // on WebKit/Capacitor) or a bundle⇄version.json drift would either strand the
-// kiosk after one try or loop forever. A small bound retries a transient failed
+// session after one try or loop forever. A small bound retries a transient failed
 // reload a few times, then gives up loudly until the next cold start.
 export const MAX_RELOAD_ATTEMPTS = 3;
 
@@ -88,7 +88,7 @@ function writeReloadGuard(buildId, attempts) {
 // live. Safe to call repeatedly; a no-op unless a genuinely different build is
 // deployed (and we haven't already exhausted retries toward it). Never throws —
 // any failure (offline, non-200, parse error) is swallowed so it can never
-// wedge the kiosk. `reload` is injectable for tests.
+// wedge the running app. `reload` is injectable for tests.
 export async function checkForDeployedUpdate({ reload } = {}) {
   if (!CURRENT_BUILD_ID) return false;
 
