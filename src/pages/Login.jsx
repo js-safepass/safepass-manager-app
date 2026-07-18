@@ -6,6 +6,7 @@ import { buildAuthorizeUrl, exchangeCodeForToken, pickBearerToken } from '../lib
 import { generateCodeChallenge, generateCodeVerifier } from '../lib/pkce.js';
 import { getUserFacingError } from '../lib/userErrors.js';
 import { consumeReturnTo, stashReturnTo } from '../lib/returnPath.js';
+import { purgeBrowserSession } from '../lib/sessionCleanup.js';
 
 const storageKeys = {
   verifier: 'manager_pkce_verifier',
@@ -29,8 +30,15 @@ const Login = () => {
   const [localError, setLocalError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Post-hosted-logout landing (/auth/logout, the registered logout_uri):
+  // Cognito already killed the SSO cookie before redirecting here. Purge any
+  // remaining local session residue and land on the sign-in screen
+  // IMMEDIATELY — this route is a pass-through, never an interstitial page
+  // (reference: sentinel-ui's logged-out route, whose countdown was
+  // deliberately removed for the same reason).
   useEffect(() => {
     if (window.location.pathname === '/auth/logout') {
+      purgeBrowserSession();
       signOut({ hosted: false }); // already past the hosted logout redirect
       window.history.replaceState({}, document.title, '/');
     }

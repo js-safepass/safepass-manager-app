@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { getUserFacingError } from '../lib/userErrors.js';
-import { getJwtSub, isJwtFresh } from '../lib/jwtUtil.js';
+import { getJwtSub } from '../lib/jwtUtil.js';
 import { flattenErrorForLog } from '../lib/errorLog.js';
-import { buildLogoutUrl, refreshTokens } from '../lib/cognitoHostedUi.js';
+import { refreshTokens } from '../lib/cognitoHostedUi.js';
 import { createFreshTokenProvider } from '../lib/freshToken.js';
 import { AUTH_ACTION, resolveAuthAction } from '../lib/authActions.js';
+import { createAuthFailurePolicy } from '../lib/authFailurePolicy.js';
+import { purgeBrowserSession, redirectToHostedLogout } from '../lib/sessionCleanup.js';
 import { AuthContext } from './useAuth.js';
 
 // Auth state for an attended app: Cognito tokens live in memory only (never
@@ -18,19 +20,16 @@ import { AuthContext } from './useAuth.js';
 // forced re-logins. The refresh rules (dedupe, throttle, rotation, race guard)
 // live in lib/freshToken.js where they're unit-tested.
 //
-// Resilience model ported from sentinel-ui via the mapping app (2026-07-13):
-// a refresh FAILURE is non-terminal (freshToken.js resolves to the best token
-// it still holds), and the sign-out decision lives ONLY on the 401 path
-// below, threshold-gated — a single transient blip or a bridge 5xx never
-// force-signs-out a working front desk.
+// Resilience model ported from sentinel-ui via the mapping app (2026-07-13),
+// hardened for 15-minute ID tokens (2026-07-18): a refresh FAILURE is
+// non-terminal (freshToken.js resolves to the best token it still holds), and
+// the sign-out decision lives ONLY on the 401 path below, owned by
+// lib/authFailurePolicy.js — transient renew failures never count toward a
+// forced sign-out; only definitive session death (revoked/expired refresh
+// token, or nothing left to renew with) is threshold-gated into one.
 //
 // VITE_MODE=dev short-circuits to signed_in with a placeholder token (or
 // VITE_DEV_MANAGER_JWT) so local development doesn't need Cognito at all.
-
-// Sign out only after this many 401s inside the window — one transient 401
-// (a request straddling expiry, a brief bridge hiccup) must not end a session.
-const AUTH_FAILURE_THRESHOLD = 2;
-const AUTH_FAILURE_WINDOW_MS = 120_000;
 
 export function AuthProvider({ children }) {
   const isDevMode = import.meta.env.VITE_MODE === 'dev';
@@ -54,27 +53,33 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
 
   const freshTokenRef = useRef(null);
-  // Timestamps of recent 401s (see onUnauthorized's threshold gate).
-  const authFailuresRef = useRef([]);
+  // The forced-sign-out decision for plain 401s (strikes + renew-failure
+  // classification) — pure and unit-tested in lib/authFailurePolicy.js.
+  const failurePolicyRef = useRef(null);
+  if (!failurePolicyRef.current) failurePolicyRef.current = createAuthFailurePolicy();
 
   const signOut = useCallback(({ hosted = true } = {}) => {
     const hadToken = Boolean(tokensRef.current.idToken);
     tokensRef.current = { idToken: null, refreshToken: null };
     freshTokenRef.current = null; // drop the provider's in-flight/throttle state
-    authFailuresRef.current = [];
+    failurePolicyRef.current.reset();
     setCognitoUserSub(null);
     setStatus('signed_out');
     setError(null);
-    // End the Cognito Hosted UI session too, so "sign out" means signed out
-    // — but only when the user explicitly asked (hosted=true). API-driven
-    // sign-outs skip it: the SSO cookie may still be valid and lets the user
-    // back in with one click.
-    if (hosted && hadToken && !isDevMode) {
-      try {
-        window.location.assign(buildLogoutUrl());
-      } catch {
-        // Missing logout config — local sign-out already happened.
-      }
+    // An EXPLICIT sign-out (hosted=true — the navbar button) must be a REAL
+    // logout: purge local session residue, then redirect through the Cognito
+    // hosted /logout endpoint — the only thing that kills the managed-login
+    // SSO cookie. Without that redirect the next "Continue" click silently
+    // re-authenticates WITHOUT credentials (web-UI QA bug class, 2026-07-18).
+    // API-driven sign-outs (hosted=false) deliberately skip both: they exist
+    // to force a RE-login (auth-contract §5 — 401 → re-auth → resume), where
+    // the surviving SSO cookie's one-click re-entry and the persisted
+    // org/scope selection are the point, not a leak.
+    if (hosted && !isDevMode) {
+      purgeBrowserSession();
+      // Degrades to a local-only sign-out (returns false) if the hosted-UI
+      // config is missing — local state is already cleared above.
+      if (hadToken) redirectToHostedLogout();
     }
   }, [isDevMode]);
 
@@ -96,7 +101,7 @@ export function AuthProvider({ children }) {
       return;
     }
     tokensRef.current = { idToken: token, refreshToken: refreshToken || null };
-    authFailuresRef.current = [];
+    failurePolicyRef.current.reset();
     setCognitoUserSub(getJwtSub(token));
     setStatus('signed_in');
   }, [isDevMode, devToken]);
@@ -113,10 +118,21 @@ export function AuthProvider({ children }) {
       // over the token ref and owns the dedupe/throttle/rotation rules.
       freshTokenRef.current = createFreshTokenProvider({
         getTokens: () => tokensRef.current,
-        setTokens: (next) => { tokensRef.current = next; },
+        // setTokens only runs when a refresh COMMITS — feed that success to
+        // the failure policy so a stale transient-failure record can't
+        // linger past a working renewal.
+        setTokens: (next) => {
+          tokensRef.current = next;
+          failurePolicyRef.current.noteRefreshSuccess();
+        },
         refresh: refreshTokens,
-        onRefreshError: (err) =>
-          console.warn('[auth] token refresh failed', flattenErrorForLog(err)),
+        // LOGGING + CLASSIFICATION only — never terminal here. The policy
+        // records whether this failure was definitive (dead refresh token)
+        // or transient (bridge blip); the 401 path consults that record.
+        onRefreshError: (err) => {
+          failurePolicyRef.current.noteRefreshFailure(err);
+          console.warn('[auth] token refresh failed', flattenErrorForLog(err));
+        },
       });
     }
     return freshTokenRef.current(opts);
@@ -153,21 +169,14 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // EXPIRY (plain/unknown 401): keep the original two-cause handling.
-    //   - a token still valid by its own `exp` → the backend rejected a VALID
-    //     token (app-client audience not enabled, policy/authz). Signing out
-    //     can't fix it and would loop; leave the session, the error surfaces at
-    //     the call site. (Reads the ACTUAL token's exp, never a wall-clock age.)
-    //   - otherwise expired/absent and refresh couldn't save it → threshold-gate
-    //     a LOCAL sign-out so a lone transient 401 is tolerated.
+    // EXPIRY (plain/unknown 401): the policy decides. A still-fresh token or
+    // a TRANSIENT renew failure (bridge 5xx, network) never signs out — with
+    // 15-minute tokens a whole poll burst can 401 during one bridge blip and
+    // that must not end a working front-desk session. Only definitive
+    // failures (dead refresh token / nothing to renew with) count, threshold-
+    // gated. Rules + rationale live in lib/authFailurePolicy.js.
     const { idToken } = tokensRef.current;
-    if (idToken && isJwtFresh(idToken)) return;
-
-    const nowMs = Date.now();
-    const recent = authFailuresRef.current.filter((t) => nowMs - t < AUTH_FAILURE_WINDOW_MS);
-    recent.push(nowMs);
-    authFailuresRef.current = recent;
-    if (recent.length < AUTH_FAILURE_THRESHOLD) return;
+    if (!failurePolicyRef.current.shouldSignOut({ idToken })) return;
 
     signOut({ hosted: false });
     setError(getUserFacingError({ code: 'UNAUTHORIZED', status: 401 }, 'signIn'));
