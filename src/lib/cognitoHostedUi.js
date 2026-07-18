@@ -10,7 +10,7 @@ export function getHostedUiConfig() {
   const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
 
   // Redirect/logout URIs derive from wherever the app is actually served —
-  // localhost:5317 in dev, the workers.dev URL before DNS exists, the custom
+  // localhost:5273 in dev, the workers.dev URL before DNS exists, the custom
   // domain after — so one build works everywhere and nothing is baked in.
   //
   // This holds on native too: the Capacitor shell runs as a LIVE web view
@@ -102,7 +102,17 @@ async function postToTokenEndpoint(params, fallbackMessage) {
   if (!response.ok) {
     const message = payload?.error_description || payload?.error
       || `${fallbackMessage} (HTTP ${response.status})`;
-    throw new Error(message);
+    const error = new Error(message);
+    // Machine-readable failure metadata for the renew-resilience policy
+    // (lib/authFailurePolicy.js): the OAuth error code + HTTP status let the
+    // 401 path tell a DEFINITIVE session death (invalid_grant — the refresh
+    // token is revoked/expired) apart from a transient fault (bridge 5xx,
+    // gateway HTML page, throttle) that must never force-sign-out a working
+    // front desk. Absent on non-HTTP failures (network TypeError) — those are
+    // transient by definition.
+    error.status = response.status;
+    error.oauthError = payload?.error || null;
+    throw error;
   }
   if (!payload) {
     throw new Error(`${fallbackMessage}: unexpected response from the token endpoint`);
@@ -132,6 +142,24 @@ async function postToTokenEndpoint(params, fallbackMessage) {
 // closes.
 export function pickBearerToken(tokenResponse) {
   return tokenResponse?.id_token || null;
+}
+
+// OAuth token-endpoint error codes that mean the refresh grant can NEVER
+// succeed again with what we hold — the refresh token itself is dead
+// (revoked by a server-side global sign-out, expired, or the client/grant is
+// misconfigured). Everything else — network failures, bridge/gateway 5xx,
+// Cognito throttling — is transient: the same grant may succeed on the next
+// attempt, so it must not be treated as session death (auth-contract §5's
+// 401 → re-auth → resume applies only when renewal is definitively gone).
+const DEFINITIVE_TOKEN_ERRORS = new Set([
+  'invalid_grant',
+  'invalid_client',
+  'unauthorized_client',
+  'unsupported_grant_type',
+]);
+
+export function isDefinitiveRefreshFailure(error) {
+  return DEFINITIVE_TOKEN_ERRORS.has(error?.oauthError);
 }
 
 // Refresh-token grant. Cognito does not rotate the refresh token on this grant
