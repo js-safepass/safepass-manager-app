@@ -1,4 +1,4 @@
-// Coverage for the kiosk auto-update logic. shouldReload() gates a page
+// Coverage for the self-update logic. shouldReload() gates a page
 // reload, so its branches are pinned exhaustively. checkForDeployedUpdate() —
 // the fetch + guard + reload wiring — is also covered here (a previous version
 // left it untested): a silently-failed reload must retry a bounded number of
@@ -14,7 +14,7 @@ import {
   VERSION_FETCH_TIMEOUT_MS,
 } from './appUpdate.js';
 
-describe('shouldReload — kiosk auto-update decision', () => {
+describe('shouldReload — self-update decision', () => {
   const base = { currentBuildId: 'A', remoteBuildId: 'B', attempts: 0 };
 
   test('reloads when a different build is deployed', () => {
