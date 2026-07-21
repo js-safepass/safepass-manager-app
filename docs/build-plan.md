@@ -1,6 +1,6 @@
 # Build plan — SafePass Manager (Visitor Management app)
 
-> **Status:** Living reference · last verified 2026-07-10
+> **Status:** Living reference · last verified 2026-07-20
 
 This repo builds **App 1 — Visitor Management** from the contractor handoff package
 ([contractor-handoff/2-requirements-brief.md](contractor-handoff/2-requirements-brief.md)).
@@ -101,7 +101,7 @@ extraction with tests beside source (D11), copy-per-app seeding (D12).
 | 2 | Hostname / scheme | `manage.safepass.com`; deep-link `safepassmanager://`; `appId` `com.safepass.manager` |
 | 3 | App slug | `manager` (repo already `safepass-manager-app`; accepted deviation from the `safepass-<name>-web` naming shape) |
 | 4 | Credential persistence (kiosk Layer 2's keystore half) | **No** — attended app, personal login, tokens in-memory on web. Persistence files (`secureStorage`, `kioskCredentials`, restore/refresh failure policies) removed |
-| 5 | DPoP sender-constrained sessions | **Planned, deferred** — owner leans yes given this app's elevated admin power; requires backend support (manager-surface session exchange + proof validation), which the brief schedules as the later hardening phase. `dpop.js` stays seeded; `managerApi` keeps a proof-attachment hook so wiring it is a one-seam change |
+| 5 | DPoP sender-constrained sessions | **Planned, deferred** (reconfirmed 2026-07-20 — current CSP + auth hardening is sufficient for now; DPoP comes later). Owner leans yes given this app's elevated admin power; requires backend support (manager-surface session exchange + proof validation), scheduled as the later hardening phase. Mainline keeps only the `dpop.js` primitive + `managerApi`'s `attachProof` hook (the one-seam retrofit point). A full session surface (`dpopSession.js`, `VITE_AUTH_DPOP_ENABLED` flag, ApiContext wiring, `docs/auth-dpop.md`) was prototyped and **archived unmerged on `archive/initial-DPoP-work`** — a reference prototype, not shipped code; re-apply once the backend `/v1/auth/session` bind/refresh endpoints exist |
 | 6 | Self-update polling (D9) | **Yes** — attended app, but staff tablets/PCs sit open all day. Keep `appUpdate.js`, suppress reload mid-interaction, 8s abort on the version probe. (Terminology note: these are staff members' personal/management tablets or PCs — *not* kiosks; kiosks are a distinct product) |
 | 7 | Deploy | Auto-deploy from GitHub with CI build gates (`ci_gate`), per SafePass CI structure |
 | 8 | Router | Add React Router when routed screens land (Phase 1/2) — justified by tenant-safe direct-link routes and 10–15 screens |
@@ -178,10 +178,56 @@ out ends the Hosted UI session too. Mode matrix documented in `.env.example`
 — mock stays a build var (`VITE_MANAGER_MOCK`), auth bypass separately
 (`VITE_MODE=dev`), so real-auth+mock-data is a supported testing posture.
 
-Still open from the phases below: org/sub-scope *selector UI* (session holds
-the state; multi-org users get first-org default today), station picker on
-check-in, host attach, visit scheduling, SSE notifications, dashboards
-beyond tiles, tracking map, photos + bulk import, native shells.
+Still open from the phases below: station picker on check-in, host attach,
+visit scheduling, SSE notifications, dashboards beyond tiles, tracking map,
+photos + bulk import, native shells. (The org/sub-scope *selector UI* has
+since shipped as the `/scope` ScopePicker — see "Auth hardening &
+standardization" below.)
+
+## Auth hardening & standardization ✅ (shipped 2026-07-16 → 07-18)
+
+Landed across `feat/auth-id-token-hardening` (PR #10), `chore/remove-mfa-gate`
+(PR #12), and `fix/auth-standardization` (PR #14). This closes out the
+auth thread; the current hardening posture is considered **sufficient for the
+build's current phase** — DPoP (decision #5) stays deferred to the later
+hardening phase, not a near-term item.
+
+- **ID token as the bearer** (auth-contract §1): the app sends the Cognito ID
+  token, not the access token — the access token carries no `email` claim and
+  is rejected once `REQUIRE_ID_TOKEN_BEARER` flips on per environment.
+  `pickBearerToken` in `cognitoHostedUi.js` is the single swap point; a missing
+  `id_token` is an error, never a silent access-token fallback.
+- **CSP + security headers**: the authoritative edge-header CSP lives in
+  `public/_headers`; `main.jsx` injects an always-on `<meta>` CSP floor (dev
+  AND prod) so the app is never left with zero CSP if the header isn't served.
+  Keep the two in sync — edit both when a directive changes.
+- **MFA gate removed** (the whole reactive surface): MFA is now enforced by
+  Cognito at the POOL level (`MfaConfiguration=REQUIRED`) — Cognito owns
+  enrollment + the login challenge, so a valid token IS proof of MFA. The
+  backend no longer emits `MFA_REQUIRED` / `MFA_REAUTH_REQUIRED` /
+  `MFA_TOTP_REQUIRED` and never trims whoami. All app code reacting to those
+  was deleted (MfaRequiredNotice, AuthActionOverlay, the trimmed-whoami guard,
+  the `mfa_required` session state); whoami now classifies to `ready |
+  no_access` only. These apps have **no in-app MFA UI by design** — it belongs
+  to Cognito's hosted login.
+- **Resilience re-hardened for 15-minute ID tokens**: silent refresh runs
+  ~4×/tab/hour, so refresh-infrastructure blips are routine, not exceptional.
+  The forced-sign-out decision moved to the pure, tested
+  `lib/authFailurePolicy.js`, which signs out ONLY on definitive session death
+  — a 401 on a still-fresh token never signs out (that's an authz/config
+  fault), a *transient* renew failure (bridge 5xx, network) never counts, and
+  only *definitive* failures (`invalid_grant` / revoked-or-expired refresh
+  token / nothing to renew with, via `isDefinitiveRefreshFailure`) are
+  threshold-gated (2-in-120s). This **supersedes** the flat "2-in-120s"
+  counter recorded in the mapping-app port note above.
+- **Real logout kills the SSO cookie**: an explicit sign-out purges local
+  session residue (`lib/sessionCleanup.js` — sessionStorage + the `safepass.*`
+  localStorage selection keys) and redirects through the Cognito hosted
+  `/logout` endpoint, the only thing that clears the managed-login SSO cookie.
+  Without it the next "Continue" click silently re-authenticates WITHOUT
+  credentials. API-driven sign-outs (401 → re-auth → resume, auth-contract §5)
+  deliberately skip the hosted redirect so the surviving cookie gives one-click
+  re-entry and the persisted org/scope selection is kept.
 
 ## Phase 1 — API client layer + auth bootstrap (the seam everything sits on)
 
