@@ -1,5 +1,23 @@
 apply plugin: 'com.android.application'
 
+// Release signing — credentials come from android/keystore.properties (git-ignored)
+// or the ANDROID_KEYSTORE_* env vars (CI); nothing secret is committed. When
+// neither is present the release build is left UNSIGNED, so debug builds and
+// keystore-less CI still succeed. Copy keystore.properties.example to get started.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def resolveSigning = { String propKey, String envKey ->
+    keystoreProperties.containsKey(propKey) ? keystoreProperties.getProperty(propKey) : System.getenv(envKey)
+}
+def releaseStoreFile = resolveSigning('storeFile', 'ANDROID_KEYSTORE_FILE')
+def releaseStorePassword = resolveSigning('storePassword', 'ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = resolveSigning('keyAlias', 'ANDROID_KEY_ALIAS')
+def releaseKeyPassword = resolveSigning('keyPassword', 'ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseStoreFile != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null
+
 android {
     namespace = "com.safepass.manager"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +34,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("[signing] No release keystore configured (android/keystore.properties or ANDROID_KEYSTORE_* env) — release build will be UNSIGNED.")
+            }
         }
     }
 }
