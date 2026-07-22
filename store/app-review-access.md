@@ -36,6 +36,12 @@ Technical notes for review:
 - The only device permission used is the camera (visitor photos).
 - No advertising, no tracking, no in-app purchases.
 
+## Reviewer limitations ‹edit to reality›
+- Exercisable in the demo org: sign-in, Visitors, Visits, Notifications, Dashboard.
+- Not completable: real check-in/out (badge issuance disabled) — reviewers can
+  start the flow but not finish it.
+- Demo video (optional, recommended): ‹TBD URL — ~20s of a completed check-in›
+
 ## Review contact
 - Name: `‹TBD›`
 - Email: `‹TBD›`
