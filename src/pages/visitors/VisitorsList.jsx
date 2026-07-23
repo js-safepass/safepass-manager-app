@@ -7,6 +7,7 @@ import VisitorFormModal from './VisitorFormModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
+import { tapLight } from '../../lib/native/haptics.js';
 
 // Visitor directory: server-filtered, keyset-paginated (opaque meta.cursor;
 // its absence — never page size — is the end signal). Filter changes discard
@@ -52,7 +53,7 @@ export default function VisitorsList() {
     <>
       <div className="d-flex align-items-center justify-content-between mb-4">
         <h4 className="fw-bold mb-0">Visitors</h4>
-        <Button variant="primary" onClick={() => setShowCreate(true)}>
+        <Button variant="primary" onClick={() => { tapLight(); setShowCreate(true); }}>
           <i className="fas fa-plus me-2" aria-hidden="true" />
           Add visitor
         </Button>

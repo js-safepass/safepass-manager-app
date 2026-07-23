@@ -4,7 +4,7 @@ import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
-import { notifyError, notifySuccess } from '../../lib/native/haptics.js';
+import { notifyError, notifySuccess, tapLight } from '../../lib/native/haptics.js';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', company: '', type: 'guest', notes: '' };
 
@@ -32,6 +32,7 @@ export default function VisitorFormModal({ show, visitor, onClose, onSaved }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    tapLight(); // modal confirm press — outcome buzz follows below
     setSaving(true);
     setError(null);
     const payload = {

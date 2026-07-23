@@ -3,6 +3,7 @@
    upstream parity at the cost of fast-refresh on this file. */
 import { useState, useCallback, useRef } from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
+import { tapLight } from '../lib/native/haptics.js';
 
 /**
  * Reusable confirmation modal for destructive and important actions.
@@ -34,7 +35,10 @@ const ConfirmModal = ({ show, title, body, confirmLabel, cancelLabel, variant, l
       <Button variant="outline-secondary" onClick={onCancel} disabled={loading}>
         {cancelLabel}
       </Button>
-      <Button variant={variant} onClick={onConfirm} disabled={loading}>
+      {/* Press tick on every confirm (owner feedback 2026-07-23) — a
+          deliberate, dated divergence from the sentinel-ui port: native
+          shells get tactile confirmation; web no-ops. */}
+      <Button variant={variant} onClick={() => { tapLight(); onConfirm(); }} disabled={loading}>
         {loading ? (
           <>
             <Spinner animation="border" size="sm" className="me-1" />

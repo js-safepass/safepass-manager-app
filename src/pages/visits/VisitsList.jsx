@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Form, Spinner, Table } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
-import RowActions from '../../components/RowActions.jsx';
+import VisitActionModal from './VisitActionModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { useScopedPolling } from '../../lib/useScopedPolling.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
-import { isCheckoutEligible, isConfirmEligible } from '../../lib/visitHelpers.js';
-import { badgeStatus, badgeStatusMap, newlyEncodedReady } from '../../lib/badgePipeline.js';
+import { visitEndTime, visitStartTime } from '../../lib/visitTimes.js';
+import { badgeStatusMap, newlyEncodedReady } from '../../lib/badgePipeline.js';
 import { notifyError, notifySuccess, notifyWarning } from '../../lib/native/haptics.js';
 
-// Visit operations: live list with lifecycle actions. Eligibility comes from
-// visitHelpers (ported — do not re-derive per screen). Polls at 15s so
-// checking_in → active and the badge pipeline progress live on screen.
+// Visit operations: live list, columns Visitor | Status | Start | End, and a
+// row TAP opens the action modal (VisitActionModal) — a DELIBERATE divergence
+// from the web UI's inline row-actions column (owner decision 2026-07-23):
+// this app ships to phones/tablets where a tap target beats hover menus.
+// Eligibility comes from visitHelpers (ported — do not re-derive per screen).
+// Polls at 15s so checking_in → active and badge progress live on screen.
 export default function VisitsList() {
   const api = useApi();
   const { activeOrgId, activeScope } = useSession();
@@ -26,6 +28,9 @@ export default function VisitsList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // The visit whose action modal is open (null = closed) + in-flight guard.
+  const [activeVisit, setActiveVisit] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   // Previous poll's badge statuses, for the completion transition below.
   // A ref (not state): each poll compares-and-swaps; no render depends on it.
@@ -55,6 +60,10 @@ export default function VisitsList() {
       }
       badgeStatusesRef.current = badgeStatusMap(visits);
       setRows(visits);
+      // Keep the open action modal's visit fresh across polls (its status /
+      // badge fields update live); if the visit left this filtered page, the
+      // modal closes rather than acting on a stale record.
+      setActiveVisit((prev) => (prev ? visits.find((x) => x.id === prev.id) || null : prev));
       setVisitorsById((prev) => ({ ...prev, ...(page?.includes?.visitors || {}) }));
       setError(null);
     } catch (err) {
@@ -74,16 +83,21 @@ export default function VisitsList() {
   });
 
   // `onDone` is the success haptic: confirm/checkout feel like completions
-  // (Success); cancel is destructive-but-intended (Warning).
+  // (Success); cancel is destructive-but-intended (Warning). Actions fire
+  // from the row modal; success closes it, failure keeps it open to retry.
   const act = (label, fn, onDone = notifySuccess) => async (visit) => {
+    setActionBusy(true);
     try {
       await fn(visit.id);
       onDone();
       flash.success(`Visit ${label}.`);
+      setActiveVisit(null);
       await load({ quiet: true });
     } catch (err) {
       notifyError();
       flash.error(getUserFacingError(err));
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -128,50 +142,24 @@ export default function VisitsList() {
             <thead>
               <tr>
                 <th>Visitor</th>
-                <th className="d-none d-md-table-cell">Started</th>
                 <th>Status</th>
-                <th className="d-none d-sm-table-cell">Badge</th>
-                <th className="text-end">Actions</th>
+                <th className="d-none d-sm-table-cell">Start</th>
+                <th className="d-none d-sm-table-cell">End</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((v) => (
-                <tr key={v.id}>
-                  <td>
-                    <Link to={`/visitors/${v.visitor_id}`} className="fw-semibold text-decoration-none">
-                      {visitorName(v)}
-                    </Link>
-                  </td>
-                  <td className="d-none d-md-table-cell">{formatDateTime(v.scheduled_start || v.created_at)}</td>
+                <tr
+                  key={v.id}
+                  role="button"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setActiveVisit(v)}
+                >
+                  <td className="fw-semibold">{visitorName(v)}</td>
                   <td><StatusBadge status={v.status} /></td>
-                  <td className="d-none d-sm-table-cell"><StatusBadge status={badgeStatus(v)} /></td>
-                  <td className="text-end">
-                    <RowActions
-                      actions={[
-                        {
-                          key: 'confirm',
-                          label: 'Confirm',
-                          icon: 'fas fa-check',
-                          show: isConfirmEligible(v),
-                          onClick: () => confirm(v),
-                        },
-                        {
-                          key: 'checkout',
-                          label: 'Check out',
-                          icon: 'fas fa-arrow-right-from-bracket',
-                          show: isCheckoutEligible(v),
-                          onClick: () => checkout(v),
-                        },
-                        {
-                          key: 'cancel',
-                          label: 'Cancel',
-                          icon: 'fas fa-ban',
-                          variant: 'danger',
-                          show: v.status === 'pending',
-                          onClick: () => cancel(v),
-                        },
-                      ]}
-                    />
+                  <td className="d-none d-sm-table-cell">{formatDateTime(visitStartTime(v)) || '—'}</td>
+                  <td className="d-none d-sm-table-cell">
+                    {visitEndTime(v) ? formatDateTime(visitEndTime(v)) : <span className="text-muted">—</span>}
                   </td>
                 </tr>
               ))}
@@ -179,6 +167,18 @@ export default function VisitsList() {
           </Table>
         )}
       </SectionCard>
+
+      {activeVisit && (
+        <VisitActionModal
+          visit={activeVisit}
+          visitorName={visitorName(activeVisit)}
+          busy={actionBusy}
+          onConfirm={confirm}
+          onCheckout={checkout}
+          onCancel={cancel}
+          onClose={() => setActiveVisit(null)}
+        />
+      )}
     </>
   );
 }
