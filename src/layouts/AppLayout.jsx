@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge, Dropdown } from 'react-bootstrap';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
@@ -62,8 +62,47 @@ export default function AppLayout() {
   // the kiosk's state-gated pattern (Kiosk.jsx: check immediately when safe,
   // poll while safe): reload when NOT in an active flow — here "active" means
   // any open modal (a form mid-entry would be wiped). Checks run at boot, on
-  // foreground resume, and on each poll tick. An auto-reload lands on Login
-  // (tokens are in-memory by design); the SSO cookie gives one-click re-entry.
+  // foreground resume, and on each poll tick. With session persistence
+  // (Tier 1) the reload silently restores the session — the update reads as a
+  // blink, not a logout.
+  //
+  // The reload itself is announced first: a non-blocking "Updating…" notice
+  // for ~5s, CANCELLED by any user interaction (they're active — defer and
+  // retry at the next quiet moment). The deferred retry reloads directly:
+  // the new-deploy decision was already made, and appUpdate's attempt cap
+  // must not be consumed by cancels.
+  const [updateNotice, setUpdateNotice] = useState(false);
+  const updateTimersRef = useRef({ reload: null, retry: null });
+  const noticeThenReloadRef = useRef(null);
+  if (!noticeThenReloadRef.current) {
+    const start = () => {
+      const timers = updateTimersRef.current;
+      if (timers.reload) return; // notice already showing
+      if (document.querySelector('.modal.show')) {
+        // Became unsafe since the check — retry at the next quiet moment.
+        timers.retry = setTimeout(start, 60_000);
+        return;
+      }
+      setUpdateNotice(true);
+      const cancel = () => {
+        clearTimeout(timers.reload);
+        timers.reload = null;
+        setUpdateNotice(false);
+        window.removeEventListener('pointerdown', cancel, true);
+        window.removeEventListener('keydown', cancel, true);
+        timers.retry = setTimeout(start, 60_000);
+      };
+      window.addEventListener('pointerdown', cancel, true);
+      window.addEventListener('keydown', cancel, true);
+      timers.reload = setTimeout(() => {
+        window.removeEventListener('pointerdown', cancel, true);
+        window.removeEventListener('keydown', cancel, true);
+        window.location.reload();
+      }, 5_000);
+    };
+    noticeThenReloadRef.current = start;
+  }
+
   const safeToReloadNatively = () => !document.querySelector('.modal.show');
   useScopedPolling({
     channel: 'app-update',
@@ -71,7 +110,9 @@ export default function AppLayout() {
     requireVisible: false,
     poll: async () => {
       if (isNative) {
-        if (safeToReloadNatively()) await checkForDeployedUpdate();
+        if (safeToReloadNatively()) {
+          await checkForDeployedUpdate({ reload: noticeThenReloadRef.current });
+        }
       } else if (document.visibilityState === 'hidden') {
         await checkForDeployedUpdate();
       }
@@ -79,15 +120,24 @@ export default function AppLayout() {
   });
   useEffect(() => {
     if (!isNative) return undefined;
+    const timers = updateTimersRef.current;
     // Boot/load: a cold start served from the WebView HTTP cache can be a
     // stale bundle — catch it immediately (reload attempts are capped in
-    // appUpdate.js, so a flapping version.json can't loop the shell).
+    // appUpdate.js, so a flapping version.json can't loop the shell). At boot
+    // nothing is in progress, so reload directly — no notice needed.
     checkForDeployedUpdate();
     // Resume: timers were frozen while backgrounded; returning to the app is
     // the natural not-mid-interaction moment to catch up.
-    return onAppStateChange(({ isActive }) => {
-      if (isActive && safeToReloadNatively()) checkForDeployedUpdate();
+    const offResume = onAppStateChange(({ isActive }) => {
+      if (isActive && safeToReloadNatively()) {
+        checkForDeployedUpdate({ reload: noticeThenReloadRef.current });
+      }
     });
+    return () => {
+      offResume();
+      clearTimeout(timers.reload);
+      clearTimeout(timers.retry);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -154,6 +204,17 @@ export default function AppLayout() {
       </div>
 
       <BottomNav items={NAV_ITEMS} />
+
+      {updateNotice && (
+        <div
+          role="status"
+          className="position-fixed start-50 translate-middle-x bg-dark text-white rounded px-3 py-2 small d-flex align-items-center gap-2"
+          style={{ bottom: 'calc(5rem + var(--app-inset-bottom, 0px))', zIndex: 2000, opacity: 0.95 }}
+        >
+          <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+          Updating SafePass…
+        </div>
+      )}
     </div>
   );
 }
