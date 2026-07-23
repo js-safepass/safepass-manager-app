@@ -47,7 +47,10 @@ export default function VisitorFormModal({ show, visitor, onClose, onSaved }) {
     try {
       const saved = isEdit
         ? await api.updateVisitor(visitor.id, payload, { ifMatch: visitor.version })
-        : await api.createVisitor({ ...payload, org_id: activeOrgId });
+        // The create body key is organization_id (VisitorWrite schema; the
+        // backend 400s ORG_ID_REQUIRED without it — org_id is NOT an accepted
+        // alias, verified 2026-07-23).
+        : await api.createVisitor({ ...payload, organization_id: activeOrgId });
       notifySuccess();
       flash.success(isEdit ? 'Visitor updated.' : 'Visitor created.');
       onSaved?.(saved?.data);
