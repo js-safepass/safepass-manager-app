@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SafePass Manager</string>
+    <string name="title_activity_main">SafePass Manager</string>
+    <string name="package_name">com.safepass.manager</string>
+    <string name="custom_url_scheme">com.safepass.manager</string>
+</resources>

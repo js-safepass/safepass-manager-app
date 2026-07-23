@@ -15,9 +15,9 @@
 // `showOfflineChip`, never `checking`. That's a UX/debounce concept;
 // external code should react only to confident state.
 //
-// Connectivity does not gate any behavior — the kiosk continues making
+// Connectivity does not gate any behavior — the app continues making
 // API calls regardless. Failed calls surface their natural error UX and
-// the kiosk keeps trying. This component is informational only.
+// the app keeps trying. This component is informational only.
 //
 // Browser `online`/`offline` events trigger an immediate probe but never
 // directly drive state — we trust our own HEAD probe, not the browser's

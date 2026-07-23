@@ -1,30 +1,28 @@
 /* global __APP_BUILD_ID__ */
-// Auto-update for long-running kiosks.
+// Auto-update for long-running sessions (decision #6 in docs/build-plan.md).
 //
-// These devices load index.html once at cold start and never reload on their
-// own — foreground only refreshes the kiosk session, and nothing re-fetches
-// the page. So a Cloudflare deploy never reaches a running kiosk until someone
-// manually relaunches the app (exactly the staleness that let an old
-// pre-bypass bundle keep showing the multiple-match overlay).
+// This is an attended staff app, but a front-desk tablet or PC commonly sits
+// open on it all day without a reload — so a Cloudflare deploy never reaches
+// that running session until someone manually refreshes. (Inherited from the
+// kiosk chassis, where the same staleness once left devices running an
+// obsolete bundle for days.)
 //
-// This module closes that gap: while the kiosk sits on the idle Start screen,
-// Kiosk.jsx polls checkForDeployedUpdate on an interval (UPDATE_CHECK_INTERVAL_MS).
-// It compares the bundle's own build id against the deployed /version.json and
-// reloads when they differ. Polling (not a one-shot on the idle transition) is
-// deliberate: a kiosk that's ALREADY idle when a deploy lands must still pick
-// it up without anyone touching the screen.
+// This module closes that gap: while the app is idle (no modal or flow open —
+// never reload mid-interaction), the shell polls checkForDeployedUpdate on an
+// interval (UPDATE_CHECK_INTERVAL_MS). It compares the bundle's own build id
+// against the deployed /version.json and reloads when they differ.
 //
 // Build wiring (vite.config.js): __APP_BUILD_ID__ is injected into the bundle
 // at build time, and the same id is emitted to /version.json. A new deploy
 // advances both in lockstep, so a stale running bundle detects the mismatch.
 
-// How often Kiosk.jsx polls for a new deploy while on the Start screen.
+// How often the shell polls for a new deploy while idle.
 export const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 // Reloads toward a single deployed build id are capped at this many attempts.
 // Without a cap, a reload that never takes effect (a no-op / interrupted reload
 // on WebKit/Capacitor) or a bundle⇄version.json drift would either strand the
-// kiosk after one try or loop forever. A small bound retries a transient failed
+// session after one try or loop forever. A small bound retries a transient failed
 // reload a few times, then gives up loudly until the next cold start.
 export const MAX_RELOAD_ATTEMPTS = 3;
 
@@ -43,9 +41,9 @@ const CURRENT_BUILD_ID =
 // sessionStorage key holding { buildId, attempts } — how many times we've
 // reloaded toward a given deployed build. sessionStorage survives a reload but
 // is cleared on cold start, exactly the lifetime we want for the attempt count.
-const RELOAD_GUARD_KEY = 'safepass.kiosk.updateReload';
+const RELOAD_GUARD_KEY = 'safepass.manager.updateReload';
 
-// Pure decision: should the kiosk reload to pick up a newer build? Kept free of
+// Pure decision: should the app reload to pick up a newer build? Kept free of
 // I/O and globals so it can be exhaustively unit-tested. `attempts` is how many
 // times we've already reloaded toward `remoteBuildId`.
 export function shouldReload({
@@ -90,7 +88,7 @@ function writeReloadGuard(buildId, attempts) {
 // live. Safe to call repeatedly; a no-op unless a genuinely different build is
 // deployed (and we haven't already exhausted retries toward it). Never throws —
 // any failure (offline, non-200, parse error) is swallowed so it can never
-// wedge the kiosk. `reload` is injectable for tests.
+// wedge the running app. `reload` is injectable for tests.
 export async function checkForDeployedUpdate({ reload } = {}) {
   if (!CURRENT_BUILD_ID) return false;
 

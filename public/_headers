@@ -1,0 +1,45 @@
+# Edge response headers for the deployed app (Cloudflare Workers static assets
+# serve this file — copied verbatim from public/ into the build root). This is
+# the AUTHORITATIVE Content-Security-Policy for staging/production.
+#
+# A second, ALWAYS-ON <meta> CSP floor is injected by src/main.jsx (dev AND
+# prod) so the app is never left with zero CSP if this header isn't served. The
+# meta floor mirrors the policy below MINUS the header-only directives
+# (frame-ancestors + X-Frame-Options/X-Content-Type-Options/Referrer-Policy).
+# KEEP THE TWO IN SYNC — edit both when a directive changes. The browser
+# enforces the intersection, so the header's frame-ancestors still applies.
+#
+# Native (Capacitor) loads the hosted origin as a live web view, so it inherits
+# this policy too. `frame-ancestors 'none'` is a top-level page constraint and
+# does not affect the WKWebView/WebView shell (it is not an iframe embed).
+#
+# Directive notes:
+#   default-src 'self'      lock everything down; widen per-type below
+#   object-src 'none'       no <object>/<embed>/<applet> (task requirement)
+#   base-uri 'self'         block <base> tag base-URL hijacking (task req.)
+#   frame-ancestors 'none'  clickjacking protection — cannot be set via <meta>,
+#                           which is exactly why the real header is required
+#   script-src 'self'       bundled JS only; no inline/eval (no 'unsafe-inline')
+#   style-src 'unsafe-inline' react-bootstrap + inline style attrs need it
+#   connect-src https:      the DataManager API + Cognito token endpoint vary by
+#                           environment and the app derives them from config, so
+#                           any https origin is permitted (plus SSE + media)
+#   img-src data: blob: https:  signed S3 media + data/blob previews
+#   font-src 'self'         DM Sans is self-hosted via @fontsource (bundled)
+# Cache policy (2026-07-23, self-update fix): the WebView shells cache
+# aggressively, so a cold start could boot a STALE bundle. HTML (and anything
+# unhashed) must revalidate every load; hashed /assets/* are immutable by
+# construction so they cache forever; /version.json is the update probe and
+# must never be cached anywhere. Later rules override earlier ones per header.
+/*
+  Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https:
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/version.json
+  Cache-Control: no-store

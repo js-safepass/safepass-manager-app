@@ -1,0 +1,4 @@
+// DM Sans is self-hosted via @fontsource/dm-sans (imported in src/main.jsx
+// before the SCSS bundle) instead of the upstream Google Fonts @import url()
+// used by sentinel-ui: the runtime CSP has no external style/font sources,
+// and this app must stay servable on-prem / air-gapped.

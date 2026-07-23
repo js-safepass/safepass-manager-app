@@ -2,17 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/safepass_dark_bg_128.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- PWA / home-screen full-screen behavior -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#1c2033" />
-    <!-- CSP is injected dynamically by src/main.jsx so it can vary by environment
-         (dev includes localhost, production does not). -->
-    <title>SafePass Kiosk</title>
+    <!-- CSP: two layers. public/_headers carries the authoritative edge policy
+         (incl. header-only frame-ancestors); src/main.jsx injects an always-on
+         <meta> floor (dev + prod) so the app never has zero CSP if the header
+         isn't served. Keep the two in sync. -->
+    <title>SafePass Manager</title>
   </head>
   <body>
     <div id="root"></div>

@@ -11,7 +11,7 @@ if (isNative) {
 
 /**
  * Register a handler for Android hardware back button.
- * In kiosk mode, we want to prevent the user from leaving the app.
+ * Kept for parity with the chassis; this app has no lockdown requirement.
  * Returns an unsubscribe function.
  */
 export function onBackButton(handler) {

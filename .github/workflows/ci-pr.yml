@@ -103,8 +103,16 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Build
-        run: npm run build
+      # Build with the mode the target branch actually deploys with, so a
+      # bad committed .env.<mode> or wrangler env fails here, not on the
+      # Cloudflare build.
+      - name: Build (target env)
+        run: |
+          if [ "${{ github.base_ref }}" = "staging" ]; then
+            npm run build:staging
+          else
+            npm run build
+          fi
 
   # Label-gated heavy suite. Add the `run-e2e` label to a PR to fire this.
   # Currently a no-op stub — wire up when an `e2e` script exists.

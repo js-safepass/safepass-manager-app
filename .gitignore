@@ -37,6 +37,10 @@ ios/App/Pods/
 ios/App/App/public/
 ios/App/build/
 ios/capacitor-cordova-ios-plugins/
+# Xcode Swift Package Manager resolution state — Capacitor plugins are
+# local-path packages (pinned by node_modules), so this is regenerated per
+# resolve and not worth committing.
+ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 android/.gradle/
 android/app/build/
 android/app/src/main/assets/public/

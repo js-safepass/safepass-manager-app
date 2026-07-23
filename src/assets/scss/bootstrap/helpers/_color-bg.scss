@@ -1,0 +1,8 @@
+// All-caps `RGBA()` function used because of this Sass bug: https://github.com/sass/node-sass/issues/2251
+@use "../variables" as bvars;
+@each $color, $value in $theme-colors {
+  .text-bg-#{$color} {
+    color: color-contrast($value) if($enable-important-utilities, !important, null);
+    background-color: RGBA(var(--#{bvars.$prefix}#{$color}-rgb), var(--#{bvars.$prefix}bg-opacity, 1)) if($enable-important-utilities, !important, null);
+  }
+}

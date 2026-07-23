@@ -1,6 +1,6 @@
 // Capacitor's native console bridge serializes Error objects as `{}` because
 // Error's own properties (message, stack, etc.) are not enumerable. The same
-// happens for KioskApiError if it extends Error without overriding toJSON.
+// happens for ManagerApiError if it extends Error without overriding toJSON.
 // Use this helper to flatten an error into a plain object whose fields will
 // survive the JS->native bridge intact, so Web Inspector / Xcode logs show
 // the actual code/status/message instead of `{}`.
@@ -17,7 +17,7 @@ export function flattenErrorForLog(error) {
     message: error.message,
     code: error.code,
     status: error.status,
-    // KioskApiError.details often carries the server's RFC7807 body (the
+    // ManagerApiError.details often carries the server's RFC7807 body (the
     // real reason). Surface it directly so it doesn't get lost.
     details: error.details,
     retryAfter: error.retryAfter,

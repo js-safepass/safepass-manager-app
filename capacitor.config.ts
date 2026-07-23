@@ -4,16 +4,16 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // via `CAP_SERVER_URL=...` for staging / preview / local-dev builds. The iOS
 // build phase script at ios/scripts/select-server-url.sh wires this up
 // automatically based on the active Xcode configuration (Debug vs Release).
-const serverUrl = process.env.CAP_SERVER_URL || 'https://kiosk.safepass.com';
+// workers.dev origin until manage.safepass.com DNS lands (changing this is
+// one of the few things that requires a native rebuild — D1).
+const serverUrl = process.env.CAP_SERVER_URL || 'https://safepass-manager-app.jonathan-sargent.workers.dev';
 
 const config: CapacitorConfig = {
-  appId: 'com.safepass.kiosk',
-  appName: 'SafePass Lobby',
+  appId: 'com.safepass.manager',
+  appName: 'SafePass Manager',
   webDir: 'dist',
 
-  // Full-screen WKWebView — no browser chrome
   ios: {
-    scheme: 'SafePass Lobby',
     contentInset: 'always',
     preferredContentMode: 'mobile',
     backgroundColor: '#1c2033',
@@ -26,34 +26,17 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: {
       // Disabled — with server.url set, the WebView loads from the real
-      // https://kiosk.safepass.com origin and CORS works natively against
+      // the real hosted https origin and CORS works natively against
       // api.safepass.com, auth.safepass.com, and S3. No native HTTP bridge needed.
       // NOTE: CapacitorHttp MUST be disabled when using server.url because its
       // GET proxy rewrites URLs to the server hostname, hitting the real server
       // instead of the local scheme handler (causing 404s).
       enabled: false,
     },
-    StatusBar: {
-      // Hide the status bar for a true kiosk feel
-      style: 'DARK',
-      backgroundColor: '#1c2033',
-    },
-    Keyboard: {
-      // 'none' — WebView frame does not reflow when the keyboard appears.
-      // Pages with text inputs are laid out top-anchored (Setup's setup-section
-      // has margin-top:24px; Form.jsx uses paddingTop:60px and column flex),
-      // so the keyboard floating over the lower 40% of landscape doesn't cover
-      // the input fields. Avoids the iOS WKWebView quirk where 'native' resize
-      // mode would intermittently fail to dispatch keyboardWillHide on tap-out
-      // and leave the layout displaced.
-      resize: 'none',
-    },
     Camera: {
-      // Use the front-facing camera by default
+      // Rear camera default is fine for staff photographing a visitor;
+      // the OS camera UI lets them flip it.
       presentationStyle: 'fullscreen',
-    },
-    ScreenOrientation: {
-      // Lock to landscape
     },
   },
 
@@ -66,8 +49,27 @@ const config: CapacitorConfig = {
     // Offline fallback — loaded from the local bundle when the remote URL
     // is unreachable (no internet, DNS failure, etc.).
     errorPath: 'offline.html',
-    // OAuth deep-link callback (safepasskiosk://) is handled separately
-    // via CFBundleURLTypes in Info.plist + @capacitor/app appUrlOpen.
+    // OAuth runs IN-PLACE in this live web view: the app navigates itself to
+    // the Hosted UI and Cognito redirects back to <server.url>/auth/callback.
+    // No custom URL scheme and no in-app browser (ported from the mapping
+    // app, 2026-07-13).
+    //
+    // allowNavigation is what makes that work natively: Capacitor keeps only
+    // same-host navigations INSIDE the WebView and punts every other host to
+    // the system browser — which breaks in-place OAuth, since the Hosted UI is
+    // a DIFFERENT origin. Allowlist the auth hosts so the Cognito login (and
+    // its redirect back to the app origin) stays in the WebView. Without this,
+    // native sign-in opens in the external browser and never returns. API/S3
+    // traffic is fetch/XHR (CORS subresource loads), never top-level
+    // navigation, so those hosts are deliberately NOT here.
+    //   - auth.safepass.com                     prod bridge (fronts the pool)
+    //   - safepass-staging…amazoncognito.com    staging raw FIPS Hosted UI
+    //   - *.amazoncognito.com                    any Cognito Hosted-UI redirect
+    allowNavigation: [
+      'auth.safepass.com',
+      'safepass-staging.auth-fips.us-gov-west-1.amazoncognito.com',
+      '*.amazoncognito.com',
+    ],
   },
 };
 

@@ -3,8 +3,8 @@
 # Xcode Run Script build phase: pick the Capacitor server.url at build time
 # based on the active Xcode configuration (Debug vs Release).
 #
-#   Debug   -> https://safepass-kiosk-web-staging.pages.dev  (Cloudflare staging)
-#   Release -> https://kiosk.safepass.com                    (production)
+#   Debug   -> https://manage-staging.safepass.com  (Cloudflare staging)
+#   Release -> https://manage.safepass.com          (production)
 #
 # The selected URL is baked into ios/App/App/capacitor.config.json by the
 # `npx cap sync ios` invocation below. capacitor.config.ts reads
@@ -72,13 +72,13 @@ fi
 
 case "$CONFIGURATION" in
   Debug)
-    SERVER_URL="https://safepass-kiosk-web-staging.pages.dev"
+    SERVER_URL="https://manage-staging.safepass.com"
     ;;
   Release|*)
     # Anything other than Debug falls back to production. Treating unknown
     # configurations as "prod by default" avoids accidentally shipping a
     # staging URL on a misnamed scheme.
-    SERVER_URL="https://kiosk.safepass.com"
+    SERVER_URL="https://manage.safepass.com"
     ;;
 esac
 

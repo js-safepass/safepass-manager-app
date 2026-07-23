@@ -1,124 +1,84 @@
-// Coverage for classifyCheckinError — the function that routes a
-// check-in failure code into one of five UX groups driving the
-// failure-modal copy and the Retry-vs-StartOver button.
+// Coverage for getUserFacingError — the single mapper from backend errors to
+// staff-facing text. The load-bearing invariants:
 //
-// Misclassifying here directly hurts visitor UX: a transient error
-// mistakenly tagged 'unrecoverable' dead-ends the visitor; an
-// unrecoverable error tagged 'transient' lets them retry into the
-// same failure forever. The recent multi-faces relaxation (allowing
-// FACE_INDEX_MULTIPLE_FACES to fall through to the transient/retry
-// path instead of forcing 'startOver') is exercised explicitly.
+//   - Stable RFC7807 codes map to their catalogue message.
+//   - 401/403/429/5xx status fallbacks behave when the code is unmapped.
+//   - Raw technical/sensitive server text never reaches the user
+//     (sanitizeMessage filters URLs, SCREAMING_CODES, and resource ids).
 
 import { describe, expect, test } from 'vitest';
-import { classifyCheckinError } from './userErrors.js';
+import { getUserFacingError } from './userErrors.js';
 
-describe('classifyCheckinError — group routing', () => {
+describe('getUserFacingError — code catalogue', () => {
   test.each([
-    ['VISITOR_ALREADY_CHECKED_IN', 'alreadyCheckedIn', 'startOver'],
-    ['VISITOR_CHECKIN_IN_PROGRESS', 'alreadyCheckedIn', 'startOver'],
-  ])('code %s → alreadyCheckedIn', (code, group, action) => {
-    const classified = classifyCheckinError({ code });
-    expect(classified.group).toBe(group);
-    expect(classified.action).toBe(action);
-    expect(classified.message).toMatch(/already checked in/i);
+    ['REVIEW_REQUIRED', /needs review/i],
+    ['BACKGROUND_CHECK_REQUIRED', /background check/i],
+    ['VISITOR_ALREADY_CHECKED_IN', /already checked in/i],
+    ['NO_AVAILABLE_BADGES', /no badges/i],
+    ['CHECKIN_QUEUE_FULL', /busy right now/i],
+    ['FACE_INDEX_NO_FACE', /no face was detected/i],
+    ['UNAUTHORIZED', /sign in again/i],
+    ['FORBIDDEN', /do not have access/i],
+  ])('code %s maps to catalogue text', (code, expected) => {
+    expect(getUserFacingError({ code, status: 400 })).toMatch(expected);
   });
 
-  test.each([
-    ['VISITOR_NOT_AVAILABLE', 'unrecoverable', 'startOver'],
-    ['BUILDING_REQUIRED', 'unrecoverable', 'startOver'],
-    ['VISITOR_NOT_FOUND', 'unrecoverable', 'startOver'],
-    // VISITOR_ARCHIVED here covers the rare cases where runCheckinChain's
-    // one-shot merge-retry exhausts (chained merge) or the response is
-    // missing merged_into_visitor_id — the error propagates up and should
-    // present as "see the front desk" rather than "try again".
-    ['VISITOR_ARCHIVED', 'unrecoverable', 'startOver'],
-  ])('code %s → unrecoverable', (code, group, action) => {
-    const classified = classifyCheckinError({ code });
-    expect(classified.group).toBe(group);
-    expect(classified.action).toBe(action);
-    expect(classified.message).toMatch(/unable to check you in/i);
+  test('unknown code falls back by status: 401', () => {
+    expect(getUserFacingError({ code: 'SOMETHING_NEW', status: 401 })).toMatch(/sign in again/i);
   });
 
-  test.each([
-    ['CHECKIN_QUEUE_FULL', 'transient', 'retry'],
-    ['NO_AVAILABLE_BADGES', 'transient', 'retry'],
-    ['CHECKIN_UNAVAILABLE', 'transient', 'retry'],
-  ])('code %s → transient (retry offered)', (code, group, action) => {
-    const classified = classifyCheckinError({ code });
-    expect(classified.group).toBe(group);
-    expect(classified.action).toBe(action);
-    expect(classified.message).toMatch(/try again/i);
+  test('unknown code falls back by status: 403', () => {
+    expect(getUserFacingError({ code: 'SOMETHING_NEW', status: 403 })).toMatch(/do not have access/i);
   });
 
-  test.each([
-    ['REVIEW_REQUIRED', 'needsStaff', 'startOver'],
-    ['BACKGROUND_CHECK_REQUIRED', 'needsStaff', 'startOver'],
-  ])('code %s → needsStaff', (code, group, action) => {
-    const classified = classifyCheckinError({ code });
-    expect(classified.group).toBe(group);
-    expect(classified.action).toBe(action);
-    expect(classified.message).toMatch(/approval/i);
+  test('unknown code falls back by status: 429', () => {
+    expect(getUserFacingError({ code: 'SOMETHING_NEW', status: 429 })).toMatch(/wait a moment/i);
   });
 
-  test('FACE_INDEX_NO_FACE → photo (startOver)', () => {
-    const classified = classifyCheckinError({ code: 'FACE_INDEX_NO_FACE' });
-    expect(classified.group).toBe('photo');
-    expect(classified.action).toBe('startOver');
-    expect(classified.message).toMatch(/retake your photo/i);
-  });
-
-  test('ORG_MISMATCH → orgMismatch (startOver)', () => {
-    const classified = classifyCheckinError({ code: 'ORG_MISMATCH' });
-    expect(classified.group).toBe('orgMismatch');
-    expect(classified.action).toBe('startOver');
+  test('unknown code with 5xx uses the context fallback', () => {
+    expect(getUserFacingError({ code: 'SOMETHING_NEW', status: 503 }, 'checkin')).toMatch(
+      /check-in could not be completed/i,
+    );
   });
 });
 
-describe('classifyCheckinError — multi-faces relaxation', () => {
-  // The Photo step's multi-face block was relaxed: a check-in that
-  // surfaces FACE_INDEX_MULTIPLE_FACES at the final step (server-side
-  // face count check) should NOT dead-end the visitor with 'startOver'.
-  // Instead it falls through to the transient/retry path so the visitor
-  // can try again (and Close + back chevrons let them recapture if
-  // needed). This test pins that behavior down.
-  test('FACE_INDEX_MULTIPLE_FACES falls through to transient (retry, not startOver)', () => {
-    const classified = classifyCheckinError({ code: 'FACE_INDEX_MULTIPLE_FACES' });
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
+describe('getUserFacingError — sanitization', () => {
+  test('technical server detail is suppressed in favor of the fallback', () => {
+    expect(
+      getUserFacingError({ status: 400, message: 'POST /v1/visitors failed: {"field":"email"}' }, 'save'),
+    ).toMatch(/changes could not be saved/i);
+  });
+
+  test('messages containing resource ids are suppressed', () => {
+    expect(
+      getUserFacingError({ status: 400, message: 'visitor_01H9ABCDEF not eligible' }, 'checkin'),
+    ).toMatch(/check-in could not be completed/i);
+  });
+
+  test('clean human-readable server detail passes through', () => {
+    expect(
+      getUserFacingError({ status: 400, message: 'Email address is not valid.' }),
+    ).toBe('Email address is not valid.');
   });
 });
 
-describe('classifyCheckinError — fallback / edge cases', () => {
-  test('unknown code → transient fallback', () => {
-    const classified = classifyCheckinError({ code: 'SOMETHING_NEW' });
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
+describe('getUserFacingError — transport and edge cases', () => {
+  test('TypeError (fetch network failure) maps to the network message', () => {
+    expect(getUserFacingError(new TypeError('Failed to fetch'))).toMatch(/could not connect/i);
   });
 
-  test('error without code → transient fallback', () => {
-    // Network errors, 5xx without parsed body, etc. — visitor gets Retry.
-    const classified = classifyCheckinError({ status: 500 });
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
+  test('string network error maps to the network message', () => {
+    expect(getUserFacingError('NetworkError when attempting to fetch resource.')).toMatch(
+      /could not connect/i,
+    );
   });
 
-  test('null error → transient fallback', () => {
-    const classified = classifyCheckinError(null);
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
+  test('OAuth access_denied reads as cancelled sign-in', () => {
+    expect(getUserFacingError('access_denied', 'signIn')).toMatch(/cancelled/i);
   });
 
-  test('undefined error → transient fallback', () => {
-    const classified = classifyCheckinError(undefined);
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
-  });
-
-  test('string error (legacy) → transient fallback', () => {
-    // Some catch sites still throw plain strings; classifier mustn't
-    // crash and should default to giving the visitor a retry.
-    const classified = classifyCheckinError('something went wrong');
-    expect(classified.group).toBe('transient');
-    expect(classified.action).toBe('retry');
+  test('null / undefined fall back to the general message', () => {
+    expect(getUserFacingError(null)).toMatch(/something went wrong/i);
+    expect(getUserFacingError(undefined)).toMatch(/something went wrong/i);
   });
 });

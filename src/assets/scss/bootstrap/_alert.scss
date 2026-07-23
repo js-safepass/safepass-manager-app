@@ -1,0 +1,71 @@
+@use "sass:map";
+@use "./variables" as bvars;
+
+//
+// Base styles
+//
+
+.alert {
+  // scss-docs-start alert-css-vars
+  --#{bvars.$prefix}alert-bg: transparent;
+  --#{bvars.$prefix}alert-padding-x: #{$alert-padding-x};
+  --#{bvars.$prefix}alert-padding-y: #{$alert-padding-y};
+  --#{bvars.$prefix}alert-margin-bottom: #{$alert-margin-bottom};
+  --#{bvars.$prefix}alert-color: inherit;
+  --#{bvars.$prefix}alert-border-color: transparent;
+  --#{bvars.$prefix}alert-border: #{$alert-border-width} solid var(--#{bvars.$prefix}alert-border-color);
+  --#{bvars.$prefix}alert-border-radius: #{$alert-border-radius};
+  --#{bvars.$prefix}alert-link-color: inherit;
+  // scss-docs-end alert-css-vars
+
+  position: relative;
+  padding: var(--#{bvars.$prefix}alert-padding-y) var(--#{bvars.$prefix}alert-padding-x);
+  margin-bottom: var(--#{bvars.$prefix}alert-margin-bottom);
+  color: var(--#{bvars.$prefix}alert-color);
+  background-color: var(--#{bvars.$prefix}alert-bg);
+  border: var(--#{bvars.$prefix}alert-border);
+  @include border-radius(var(--#{bvars.$prefix}alert-border-radius));
+}
+
+// Headings for larger alerts
+.alert-heading {
+  // Specified to prevent conflicts of changing $headings-color
+  color: inherit;
+}
+
+// Provide class for links that match alerts
+.alert-link {
+  font-weight: $alert-link-font-weight;
+  color: var(--#{bvars.$prefix}alert-link-color);
+}
+
+
+// Dismissible alerts
+//
+// Expand the right padding and account for the close button's positioning.
+
+.alert-dismissible {
+  padding-right: $alert-dismissible-padding-r;
+
+  // Adjust close link position
+  .btn-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: $stretched-link-z-index + 1;
+    padding: $alert-padding-y * 1.25 $alert-padding-x;
+  }
+}
+
+
+// scss-docs-start alert-modifiers
+// Generate contextual modifier classes for colorizing the alert
+@each $state in map.keys($theme-colors) {
+  .alert-#{$state} {
+    --#{bvars.$prefix}alert-color: var(--#{bvars.$prefix}#{$state}-text-emphasis);
+    --#{bvars.$prefix}alert-bg: var(--#{bvars.$prefix}#{$state}-bg-subtle);
+    --#{bvars.$prefix}alert-border-color: var(--#{bvars.$prefix}#{$state}-border-subtle);
+    --#{bvars.$prefix}alert-link-color: var(--#{bvars.$prefix}#{$state}-text-emphasis);
+  }
+}
+// scss-docs-end alert-modifiers

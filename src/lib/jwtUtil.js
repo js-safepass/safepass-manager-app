@@ -1,5 +1,5 @@
 // Minimal JWT decoder for extracting claims we don't need to verify.
-// The kioskJwt is already trusted (issued by Cognito to this client via OAuth),
+// The JWT is already trusted (issued by Cognito to this client via OAuth),
 // so we don't re-validate signatures here — only parse the payload for the
 // claims we care about (e.g. `sub` for user identity binding).
 //
@@ -47,7 +47,7 @@ export function decodeJwtPayload(token) {
 }
 
 /**
- * Extract the Cognito user subject identifier from a kioskJwt.
+ * Extract the Cognito user subject identifier from a Cognito JWT.
  * Returns null if the token is malformed or has no `sub` claim.
  *
  * @param {string} token
@@ -56,4 +56,33 @@ export function decodeJwtPayload(token) {
 export function getJwtSub(token) {
   const payload = decodeJwtPayload(token);
   return typeof payload?.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+}
+
+/**
+ * Milliseconds-epoch expiry of a JWT, or null when the token is malformed
+ * or carries no `exp` claim.
+ *
+ * @param {string} token
+ * @returns {number|null}
+ */
+export function getJwtExpiryMs(token) {
+  const payload = decodeJwtPayload(token);
+  return typeof payload?.exp === 'number' ? payload.exp * 1000 : null;
+}
+
+/**
+ * Whether a token is still comfortably inside its lifetime. Tokens without
+ * a readable `exp` claim (dev placeholders, opaque strings) are treated as
+ * fresh — expiry enforcement for those belongs to the server.
+ *
+ * @param {string} token
+ * @param {{ skewMs?: number, now?: number }} [options] — skewMs (default
+ *   30s) refreshes slightly early so an in-flight request can't straddle
+ *   the expiry.
+ * @returns {boolean}
+ */
+export function isJwtFresh(token, { skewMs = 30_000, now = Date.now() } = {}) {
+  const expiry = getJwtExpiryMs(token);
+  if (expiry === null) return true;
+  return expiry - skewMs > now;
 }

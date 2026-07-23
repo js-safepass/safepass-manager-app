@@ -1,0 +1,74 @@
+@use "./variables" as bvars;
+.toast {
+  // scss-docs-start toast-css-vars
+  --#{bvars.$prefix}toast-zindex: #{$zindex-toast};
+  --#{bvars.$prefix}toast-padding-x: #{$toast-padding-x};
+  --#{bvars.$prefix}toast-padding-y: #{$toast-padding-y};
+  --#{bvars.$prefix}toast-spacing: #{$toast-spacing};
+  --#{bvars.$prefix}toast-max-width: #{$toast-max-width};
+  @include rfs($toast-font-size, --#{bvars.$prefix}toast-font-size);
+  --#{bvars.$prefix}toast-color: #{$toast-color};
+  --#{bvars.$prefix}toast-bg: #{$toast-background-color};
+  --#{bvars.$prefix}toast-border-width: #{$toast-border-width};
+  --#{bvars.$prefix}toast-border-color: #{$toast-border-color};
+  --#{bvars.$prefix}toast-border-radius: #{$toast-border-radius};
+  --#{bvars.$prefix}toast-box-shadow: #{$toast-box-shadow};
+  --#{bvars.$prefix}toast-header-color: #{$toast-header-color};
+  --#{bvars.$prefix}toast-header-bg: #{$toast-header-background-color};
+  --#{bvars.$prefix}toast-header-border-color: #{$toast-header-border-color};
+  // scss-docs-end toast-css-vars
+
+  width: var(--#{bvars.$prefix}toast-max-width);
+  max-width: 100%;
+  @include font-size(var(--#{bvars.$prefix}toast-font-size));
+  color: var(--#{bvars.$prefix}toast-color);
+  pointer-events: auto;
+  background-color: var(--#{bvars.$prefix}toast-bg);
+  background-clip: padding-box;
+  border: var(--#{bvars.$prefix}toast-border-width) solid var(--#{bvars.$prefix}toast-border-color);
+  box-shadow: var(--#{bvars.$prefix}toast-box-shadow);
+  @include border-radius(var(--#{bvars.$prefix}toast-border-radius));
+
+  &.showing {
+    opacity: 0;
+  }
+
+  &:not(.show) {
+    display: none;
+  }
+}
+
+.toast-container {
+  --#{bvars.$prefix}toast-zindex: #{$zindex-toast};
+
+  position: absolute;
+  z-index: var(--#{bvars.$prefix}toast-zindex);
+  width: max-content;
+  max-width: 100%;
+  pointer-events: none;
+
+  > :not(:last-child) {
+    margin-bottom: var(--#{bvars.$prefix}toast-spacing);
+  }
+}
+
+.toast-header {
+  display: flex;
+  align-items: center;
+  padding: var(--#{bvars.$prefix}toast-padding-y) var(--#{bvars.$prefix}toast-padding-x);
+  color: var(--#{bvars.$prefix}toast-header-color);
+  background-color: var(--#{bvars.$prefix}toast-header-bg);
+  background-clip: padding-box;
+  border-bottom: var(--#{bvars.$prefix}toast-border-width) solid var(--#{bvars.$prefix}toast-header-border-color);
+  @include border-top-radius(calc(var(--#{bvars.$prefix}toast-border-radius) - var(--#{bvars.$prefix}toast-border-width)));
+
+  .btn-close {
+    margin-right: calc(-.5 * var(--#{bvars.$prefix}toast-padding-x)); // stylelint-disable-line function-disallowed-list
+    margin-left: var(--#{bvars.$prefix}toast-padding-x);
+  }
+}
+
+.toast-body {
+  padding: var(--#{bvars.$prefix}toast-padding-x);
+  word-wrap: break-word;
+}
