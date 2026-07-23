@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Col, Form, Row, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Col, Form, Row, Spinner, Table } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
@@ -8,6 +8,7 @@ import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { tapLight } from '../../lib/native/haptics.js';
+import { presenceFor, presenceFromVisits } from '../../lib/visitorPresence.js';
 
 // Visitor directory: server-filtered, keyset-paginated (opaque meta.cursor;
 // its absence — never page size — is the end signal). Filter changes discard
@@ -24,6 +25,13 @@ export default function VisitorsList() {
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
 
+  // Live presence join (owner feedback 2026-07-23): the Visitor record has
+  // no live check-in state — it exists only as the current visit's status —
+  // so fetch on-site visits once per page load and join client-side
+  // (lib/visitorPresence.js). Best-effort: a failure just renders everyone
+  // off-site rather than blocking the directory.
+  const [presence, setPresence] = useState(() => presenceFromVisits([]));
+
   const load = useCallback(async ({ append = false, cursor: cur } = {}) => {
     const setBusy = append ? setLoadingMore : setLoading;
     setBusy(true);
@@ -38,6 +46,11 @@ export default function VisitorsList() {
       });
       setRows((prev) => (append ? [...prev, ...(page?.data || [])] : page?.data || []));
       setCursor(page?.meta?.cursor || null);
+      if (!append) {
+        api.listVisits({ org_id: activeOrgId, status: 'checking_in,active,checking_out', limit: 200 })
+          .then((res) => setPresence(presenceFromVisits(res?.data)))
+          .catch(() => {});
+      }
     } catch (err) {
       setError(getUserFacingError(err, 'load'));
     } finally {
@@ -100,25 +113,39 @@ export default function VisitorsList() {
                 <th>Name</th>
                 <th className="d-none d-md-table-cell">Company</th>
                 <th className="d-none d-sm-table-cell">Type</th>
-                <th>Status</th>
+                {/* Presence (live check-in state from on-site visits) is THE
+                    status column now (owner feedback 2026-07-23); lifecycle
+                    status is a record property, shown as a secondary badge on
+                    the name only when notable (pending review / archived). */}
+                <th>Presence</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((v) => (
-                <tr
-                  key={v.id}
-                  role="button"
-                  onClick={() => navigate(`/visitors/${v.id}`)}
-                >
-                  <td>
-                    <div className="fw-semibold">{v.first_name} {v.last_name}</div>
-                    <div className="text-muted small">{v.email}</div>
-                  </td>
-                  <td className="d-none d-md-table-cell">{v.company}</td>
-                  <td className="d-none d-sm-table-cell text-capitalize">{v.type}</td>
-                  <td><StatusBadge status={v.status} /></td>
-                </tr>
-              ))}
+              {rows.map((v) => {
+                const live = presenceFor(presence, v.id);
+                return (
+                  <tr
+                    key={v.id}
+                    role="button"
+                    onClick={() => navigate(`/visitors/${v.id}`)}
+                  >
+                    <td>
+                      <div className="fw-semibold d-flex align-items-center gap-2">
+                        {v.first_name} {v.last_name}
+                        {v.status && v.status !== 'active' && <StatusBadge status={v.status} />}
+                      </div>
+                      <div className="text-muted small">{v.email}</div>
+                    </td>
+                    <td className="d-none d-md-table-cell">{v.company}</td>
+                    <td className="d-none d-sm-table-cell text-capitalize">{v.type}</td>
+                    <td>
+                      {live
+                        ? <Badge bg={live.variant}>{live.label}</Badge>
+                        : <span className="text-muted small">Off site</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         )}
