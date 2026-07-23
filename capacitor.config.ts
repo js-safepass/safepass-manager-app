@@ -53,6 +53,23 @@ const config: CapacitorConfig = {
     // the Hosted UI and Cognito redirects back to <server.url>/auth/callback.
     // No custom URL scheme and no in-app browser (ported from the mapping
     // app, 2026-07-13).
+    //
+    // allowNavigation is what makes that work natively: Capacitor keeps only
+    // same-host navigations INSIDE the WebView and punts every other host to
+    // the system browser — which breaks in-place OAuth, since the Hosted UI is
+    // a DIFFERENT origin. Allowlist the auth hosts so the Cognito login (and
+    // its redirect back to the app origin) stays in the WebView. Without this,
+    // native sign-in opens in the external browser and never returns. API/S3
+    // traffic is fetch/XHR (CORS subresource loads), never top-level
+    // navigation, so those hosts are deliberately NOT here.
+    //   - auth.safepass.com                     prod bridge (fronts the pool)
+    //   - safepass-staging…amazoncognito.com    staging raw FIPS Hosted UI
+    //   - *.amazoncognito.com                    any Cognito Hosted-UI redirect
+    allowNavigation: [
+      'auth.safepass.com',
+      'safepass-staging.auth-fips.us-gov-west-1.amazoncognito.com',
+      '*.amazoncognito.com',
+    ],
   },
 };
 

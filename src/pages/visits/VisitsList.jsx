@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Form, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
@@ -11,16 +11,8 @@ import { useScopedPolling } from '../../lib/useScopedPolling.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
 import { isCheckoutEligible, isConfirmEligible } from '../../lib/visitHelpers.js';
-
-// Badge pipeline state derived from the visit's media/error fields — the
-// same derivation as sentinel-ui's useVisitFlow (its full polling hook comes
-// with the dedicated visit view in Phase 3).
-function badgeStatus(v) {
-  if (v.badge_encode_error || v.badge_render_error) return 'failed';
-  if (v.badge_encoded_media_id) return 'encoded_ready';
-  if (v.badge_raw_media_id) return 'rendered';
-  return 'pending';
-}
+import { badgeStatus, badgeStatusMap, newlyEncodedReady } from '../../lib/badgePipeline.js';
+import { notifyError, notifySuccess, notifyWarning } from '../../lib/native/haptics.js';
 
 // Visit operations: live list with lifecycle actions. Eligibility comes from
 // visitHelpers (ported — do not re-derive per screen). Polls at 15s so
@@ -34,6 +26,10 @@ export default function VisitsList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Previous poll's badge statuses, for the completion transition below.
+  // A ref (not state): each poll compares-and-swaps; no render depends on it.
+  const badgeStatusesRef = useRef(new Map());
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
@@ -49,7 +45,16 @@ export default function VisitsList() {
         status: statusFilter || undefined,
         expand: 'visitor',
       });
-      setRows(page?.data || []);
+      const visits = page?.data || [];
+      // Badge completion is a background transition observed between polls
+      // (not an action callback) — buzz once when a badge becomes ready.
+      // First sighting stays silent (newlyEncodedReady contract), and the
+      // poll pauses when hidden, so this can't fire on a background tab.
+      if (newlyEncodedReady(badgeStatusesRef.current, visits).length > 0) {
+        notifySuccess();
+      }
+      badgeStatusesRef.current = badgeStatusMap(visits);
+      setRows(visits);
       setVisitorsById((prev) => ({ ...prev, ...(page?.includes?.visitors || {}) }));
       setError(null);
     } catch (err) {
@@ -68,19 +73,23 @@ export default function VisitsList() {
     intervalMs: 15_000,
   });
 
-  const act = (label, fn) => async (visit) => {
+  // `onDone` is the success haptic: confirm/checkout feel like completions
+  // (Success); cancel is destructive-but-intended (Warning).
+  const act = (label, fn, onDone = notifySuccess) => async (visit) => {
     try {
       await fn(visit.id);
+      onDone();
       flash.success(`Visit ${label}.`);
       await load({ quiet: true });
     } catch (err) {
+      notifyError();
       flash.error(getUserFacingError(err));
     }
   };
 
   const confirm = act('confirmed', api.confirmVisit);
   const checkout = act('checked out', api.checkoutVisit);
-  const cancel = act('cancelled', api.cancelVisit);
+  const cancel = act('cancelled', api.cancelVisit, notifyWarning);
 
   const visitorName = (v) => {
     const visitor = visitorsById[v.visitor_id];
