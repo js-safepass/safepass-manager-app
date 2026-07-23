@@ -20,13 +20,16 @@ test('signed-in app mounts: dashboard, metric tiles, and nav render from the moc
   const { default: App } = await import('./App.jsx');
   const { AuthProvider } = await import('./state/AuthContext.jsx');
   const { FlashProvider } = await import('./lib/flashProvider.jsx');
+  const { ThemeProvider } = await import('./state/ThemeContext.jsx');
 
   render(
-    <AuthProvider>
-      <FlashProvider>
-        <App />
-      </FlashProvider>
-    </AuthProvider>,
+    <ThemeProvider>
+      <AuthProvider>
+        <FlashProvider>
+          <App />
+        </FlashProvider>
+      </AuthProvider>
+    </ThemeProvider>,
   );
 
   expect(await screen.findByRole('heading', { name: /dashboard/i })).toBeInTheDocument();

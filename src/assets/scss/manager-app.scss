@@ -10,6 +10,14 @@
 // verified 8.4.2). var(--…, env(--…, 0px)) covers both, and resolves to 0 in
 // desktop browsers. Use ONLY these variables for insets — never raw env().
 :root {
+  // Scope-tier palette — SAME level = SAME color in every SafePass app
+  // (fleet convention; values from the mapping app's tokens.css, which took
+  // them from the shipped web UI).
+  --sp-scope-org: #3378FF;
+  --sp-scope-division: #20c997;
+  --sp-scope-location: #fd7e14;
+  --sp-scope-building: #6f42c1;
+
   --app-inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
   --app-inset-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
   --app-inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
@@ -123,14 +131,29 @@
 }
 
 // Compact brand mark shown on the mobile topbar (the sidebar owns it ≥lg).
+// Dark mode: navy-on-dark is invisible — use the body emphasis color there.
 .app-topbar-brand {
   color: var(--safepass-primary-dark, #0c2556);
   font-size: 1.15rem;
+
+  [data-bs-theme='dark'] & {
+    color: var(--bs-emphasis-color, #fff);
+  }
 }
 
 // Profile menu toggle: icon-only — suppress Bootstrap's caret.
 .app-profile-toggle::after {
   display: none;
+}
+
+// Scope-tier dot (fleet parity with the mapping app's ScopeDot).
+.app-scope-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  vertical-align: middle;
 }
 
 .app-main {
