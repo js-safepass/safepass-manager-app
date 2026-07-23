@@ -45,8 +45,28 @@
   implicit)?
   A: Implicit clear, changing a higher value changes possible inheritance, a floor of building B is not valid if building is changed to C, and building B and C may be at different locations etc.
 
+## Additional items to unify
+- Toasts/alerts should behave the same on both apps
+- Toasts and alerts can be too wide (overflow left) and also float too high (overlap unsafe areas)
+  realistically both should be fixed
+
 ## Sequencing
 Depends on the `feat/bottom-nav` revive (it carries `9f3708f`). Build order:
 revive first (mapping), then this contract lands as one PR per app.
 Estimate: ~4–6h mapping (mostly persistence + crumb editing), ~3–4h manager
 (caret + per-tier editing + palette).
+
+## Unrelated items to stage
+- Visits page in Manager App
+  - Visits should also show start/end times in the initial table
+  - The visit inspect on click should show more data (host, times, etc - right now the times are blank for example)
+- Visitors page in Manager App
+  - The visitors filters should also filter for the state/status column that handles checked in etc conditions - the current status column is primarily a lifecycle concern and honestly can be hidden in an advanced filters area and default to available filtering. Reference the API specs for more clarity on this as it is somewhat confusing
+- Notification page in Manager App
+  - Clicking a notification in the list should open an expand that shows full details - also marking read on exit from that modal
+  - If filtering is available in the API, we should consider adding it here (optional, keep muted)
+- Dashboard in Manager App
+  - We should probably retire the pending review card for an Available Badges card - we can also do a display like 43/60 shogin currently available and total capacity - not critical
+  - Todays Visits quick action does not filter the all visits view properly - it should show all scheduled active and past visits FOR THAT DAY only, not even a hard 24h lookback, but reset at midnight for the location or user timezone
+  - We might want to add a timezone setting to just the manager app user profile menu dropdown, like the UI has - willing to discuss
+  - 
