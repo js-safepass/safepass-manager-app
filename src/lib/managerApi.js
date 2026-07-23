@@ -259,6 +259,15 @@ export function createManagerApi({
       managerFetch({ method: 'GET', path: '/v1/whoami' }),
     listAuthScopes: () =>
       managerFetch({ method: 'GET', path: '/v1/auth/scopes' }),
+
+    // --- User settings (server-default theme/timezone; WS-4) ---
+    // Allowlisted for this client (backend apppolicy.go `appAll`, verified
+    // 2026-07-23). PUT is versioned — pass ifMatch with the last-seen
+    // `version` per the fleet If-Match convention.
+    getUserSettings: () =>
+      managerFetch({ method: 'GET', path: '/v1/users/me/settings' }),
+    updateUserSettings: (payload, { ifMatch } = {}) =>
+      managerFetch({ method: 'PUT', path: '/v1/users/me/settings', body: payload }, { ifMatch }),
     getScopeTree: (orgId) =>
       managerFetch({ method: 'GET', path: `/v1/orgs/${orgId}/scope-tree` }),
 
@@ -421,6 +430,18 @@ export function createMockManagerApi() {
     { id: 'visit_004', visitor_id: 'visitor_005', org_id: org.id, status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, scheduled_start: new Date(now + 3 * HOUR).toISOString(), scheduled_end: new Date(now + 6 * HOUR).toISOString(), created_at: iso(6 * HOUR), updated_at: iso(6 * HOUR) },
   ];
 
+  // Stateful mock user settings (theme/timezone roaming — WS-4).
+  const mockUserSettings = {
+    theme: 'auto',
+    timezone_display: 'scope',
+    user_timezone: null,
+    flags: {},
+    meta: {},
+    version: 1,
+    created_at: iso(30 * DAY),
+    updated_at: iso(30 * DAY),
+  };
+
   const notifications = [
     { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null },
     { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null },
@@ -496,6 +517,15 @@ export function createMockManagerApi() {
     }),
     listAuthScopes: async () => ({ data: {} }),
     getScopeTree: async () => ({ data: { organization: { ...org, divisions: [] } } }),
+
+    getUserSettings: async () => ({ data: { ...mockUserSettings } }),
+    updateUserSettings: async (payload) => {
+      Object.assign(mockUserSettings, payload, {
+        version: (mockUserSettings.version || 1) + 1,
+        updated_at: new Date().toISOString(),
+      });
+      return { data: { ...mockUserSettings } };
+    },
 
     listVisitors: async (params = {}) => {
       let rows = [...visitors];

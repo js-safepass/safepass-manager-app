@@ -131,9 +131,14 @@
 }
 
 // Compact brand mark shown on the mobile topbar (the sidebar owns it ≥lg).
+// Dark mode: navy-on-dark is invisible — use the body emphasis color there.
 .app-topbar-brand {
   color: var(--safepass-primary-dark, #0c2556);
   font-size: 1.15rem;
+
+  [data-bs-theme='dark'] & {
+    color: var(--bs-emphasis-color, #fff);
+  }
 }
 
 // Profile menu toggle: icon-only — suppress Bootstrap's caret.
