@@ -29,3 +29,31 @@ gate (shipped) + these features are the depth story. See
   real feature and hardware-level native depth a reviewer can see.
 - Push is the biggest 4.2 signal but the heaviest lift (backend + Apple/Google
   push infra) — treat as a standalone initiative, not a quick add.
+
+## Scoped surfaces (confirmed 2026-07-23)
+
+### Haptics — native only; iPhone (no-op on iPad/web)
+Principle: fire on **outcomes and confirmations, not every tap**.
+
+| Surface | Haptic |
+|---|---|
+| Check-in accepted (202) | Medium impact |
+| Check-in complete (badge encoded ready) | Success |
+| Check-in gate fail (428 review / 409 already-in / no-badges) | Warning |
+| Visit confirm / checkout / complete — success | Success |
+| Cancel visit — confirm tap → done | Medium impact → Warning |
+| Assign / rerender badge — success | Success |
+| Visitor create/update saved | Success |
+| Photo uploaded | Success |
+| Any mutation error (`ManagerApiError`) | Error |
+
+### Push notifications — requires push infra (`@capacitor/push-notifications` + APNs/FCM + backend)
+| Event | Push? | Priority | Recipient |
+|---|---|---|---|
+| `geofence_breach` | ✅ | High | front-desk staff |
+| `checkin_failed` | ✅ | High | front-desk staff |
+| `review_required` | ✅ | Normal | front-desk staff |
+| `device_offline` | ✅ | Normal | front-desk staff |
+| **Host notification** — visitor arrival | ✅ | Normal | **the host** ‹confirm host push channel — hosts may not be manager-app users; backend routing decision› |
+| `visitor_checked_in` (staff feed) | ✗ in-app only | — | front-desk |
+| `visit_completed` | ✗ in-app only | — | — |
