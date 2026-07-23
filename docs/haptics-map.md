@@ -25,6 +25,10 @@ Principle: fire on **outcomes and confirmations, not every tap.**
 | Visitor save error | `notifyError` | `VisitorFormModal.submit` catch | ✅ |
 | Assign / rerender badge | `notifySuccess` | **NOT WIREABLE YET** — no UI exists for these actions (managerApi stubs only). Wire when the badge-actions surface is built. | ⏳ |
 | Photo uploaded | `notifySuccess` | **NOT WIREABLE YET** — photo-upload flow is Phase 5. | ⏳ |
+| Modal confirm press (any ConfirmModal) | `tapLight` | `components/ConfirmModal.jsx` — central, dated divergence from the sentinel-ui port (owner feedback 2026-07-23) | ✅ |
+| Visitor form submit press | `tapLight` | `VisitorFormModal.submit` (before the async; outcome buzz follows) | ✅ |
+| Add visitor button | `tapLight` | `VisitorsList` header button | ✅ |
+| Visit action modal button press | `tapLight` | `pages/visits/VisitActionModal.jsx` (row-tap modal; outcome buzz from the action) | ✅ |
 
 ## Implementation notes (the two non-obvious bits)
 - **Badge completion is a poll TRANSITION, not a callback.** The pipeline

@@ -1,4 +1,4 @@
-import { Badge, Button } from 'react-bootstrap';
+import { Badge, Dropdown } from 'react-bootstrap';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
 import { useSession } from '../state/useSession.js';
@@ -44,7 +44,7 @@ function SidebarBrand() {
 // --safepass-primary-dark navy, white-on-8%-white active state).
 export default function AppLayout() {
   const { signOut } = useAuth();
-  const { scopeLabel, activeScope } = useSession();
+  const { scopeLabel, activeScope, whoami } = useSession();
 
   // Self-update (decision #6): staff leave this app open all day, and D1
   // deploys never restart a running tab. Poll /version.json every 15 min and
@@ -87,10 +87,36 @@ export default function AppLayout() {
               </>
             ) : null}
           </Link>
+          {/* Profile menu (owner feedback 2026-07-23): the sign-out action
+              moves behind a profile icon so the topbar stays clean and the
+              menu has room to grow (preferences, account) later. */}
           <div className="ms-auto">
-            <Button variant="outline-secondary" size="sm" onClick={signOut}>
-              Sign out
-            </Button>
+            <Dropdown align="end">
+              <Dropdown.Toggle
+                variant="link"
+                id="profile-menu"
+                className="p-0 text-body app-profile-toggle"
+                aria-label="Account menu"
+              >
+                <i className="fas fa-circle-user fs-4" aria-hidden="true" />
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                {whoami?.email && (
+                  <>
+                    <Dropdown.Header className="text-truncate">{whoami.email}</Dropdown.Header>
+                    <Dropdown.Divider />
+                  </>
+                )}
+                <Dropdown.Item as={Link} to="/scope">
+                  <i className="fas fa-building me-2" aria-hidden="true" />
+                  Change scope
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => signOut()}>
+                  <i className="fas fa-arrow-right-from-bracket me-2" aria-hidden="true" />
+                  Sign out
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
           </div>
         </header>
         <main className="flex-grow-1 p-3 p-lg-4">
