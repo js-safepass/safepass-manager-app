@@ -1,46 +1,42 @@
-# Haptics — map & implementation plan (SafePass Manager)
+# Haptics — map & implementation (SafePass Manager)
 
-> **Status:** PLAN, not yet implemented (2026-07-23). Pure client wiring — no
-> backend, no new deps. Surfaces confirmed in `docs/native-feature-schedule.md`.
+> **Status:** IMPLEMENTED 2026-07-23 (surfaces below marked ✅). Pure client
+> wiring through the existing `src/lib/native/haptics.js` seam — no backend,
+> no new deps. Scope confirmed in `docs/native-feature-schedule.md`.
 
-## Ready-made seam
-`src/lib/native/haptics.js` already exists (unused) and is the single seam:
-`tapLight` / `tapMedium` / `tapHeavy`, `notifySuccess` / `notifyWarning` /
-`notifyError`. It lazy-imports `@capacitor/haptics` and **no-ops on web**.
+## Seam & platform behavior
+`src/lib/native/haptics.js`: `tapLight/Medium/Heavy`, `notifySuccess/Warning/
+Error`. Lazy-imports `@capacitor/haptics`; **no-ops on web** (tests/dev safe);
+**iPad silently ignores** (no Taptic Engine); full effect on **iPhone**.
 
-## Platform behavior (no extra code needed)
-- **Web / dev / mock:** no-op (the wrapper guards on `isNative`) — tests are safe.
-- **iPad:** the OS silently ignores haptics (no Taptic Engine) — automatic no-op.
-- **iPhone:** full effect. Manager is universal, so haptics land only on iPhone.
-
-## The map
+## The map (as implemented)
 Principle: fire on **outcomes and confirmations, not every tap.**
 
-| Surface | Wrapper call | Where (call site) |
-|---|---|---|
-| Check-in accepted (202) | `tapMedium` | `pages/visitors/VisitorDetail.jsx` — check-in handler |
-| Check-in complete (badge encoded ready) | `notifySuccess` | badge-pipeline completion (`useVisitFlow` / badge status poll) |
-| Check-in gate fail (428 review / 409 already-in / no-badges) | `notifyWarning` | check-in handler `catch` |
-| Visit confirm / checkout / complete — success | `notifySuccess` | visit lifecycle actions (`VisitsList` / visit detail — confirm at wiring) |
-| Cancel visit — confirm tap → done | `tapMedium` → `notifyWarning` | ConfirmModal confirm + action result |
-| Assign / rerender badge — success | `notifySuccess` | badge action handler |
-| Visitor create / update — saved | `notifySuccess` | `pages/visitors/VisitorFormModal.jsx` |
-| Photo uploaded | `notifySuccess` | photo upload handler |
-| Any mutation error (`ManagerApiError`) | `notifyError` | action `catch` blocks |
+| Surface | Haptic | Where | |
+|---|---|---|---|
+| Check-in accepted (202) | `tapMedium` | `VisitorDetail.checkIn` success | ✅ |
+| Check-in gate fail (review / already-in / no-badges / …) | `notifyWarning` | `VisitorDetail.checkIn` catch via **`lib/checkinGate.js`** (`isCheckinGateError`, unit-tested — gate codes are expected outcomes, not errors) | ✅ |
+| Check-in real error | `notifyError` | same catch, non-gate codes | ✅ |
+| Badge encoded ready ("check-in complete") | `notifySuccess` | `VisitsList` poll via **`lib/badgePipeline.js`** (see note) | ✅ |
+| Visit confirm / checkout — success | `notifySuccess` | `VisitsList.act` factory | ✅ |
+| Cancel visit — done | `notifyWarning` | `VisitsList.act(cancel)` (destructive-but-intended) | ✅ |
+| Visit action error | `notifyError` | `VisitsList.act` catch | ✅ |
+| Visitor create / update — saved | `notifySuccess` | `VisitorFormModal.submit` | ✅ |
+| Visitor save error | `notifyError` | `VisitorFormModal.submit` catch | ✅ |
+| Assign / rerender badge | `notifySuccess` | **NOT WIREABLE YET** — no UI exists for these actions (managerApi stubs only). Wire when the badge-actions surface is built. | ⏳ |
+| Photo uploaded | `notifySuccess` | **NOT WIREABLE YET** — photo-upload flow is Phase 5. | ⏳ |
 
-## Implementation approach
-- Import the wrapper fns at each handler; call on the mutation's `then`/`catch`.
-- Keep it explicit per surface (the seam doesn't know success *semantics*).
-  Optionally a tiny `withHaptic(action, {success, error})` helper if the `catch`
-  duplication grows — but don't route through the `managerApi` seam (it can't
-  tell a "check-in" success from a "cancel" success).
-- No new wrapper functions needed; the six cover every surface above.
+## Implementation notes (the two non-obvious bits)
+- **Badge completion is a poll TRANSITION, not a callback.** The pipeline
+  completes in the background (observed via the 15s list poll), so
+  `lib/badgePipeline.js` (unit-tested) tracks the previous poll's statuses and
+  reports ids that newly became `encoded_ready`; `VisitsList` buzzes Success
+  once per transition. First page load stays silent by contract, and
+  `useScopedPolling` pauses when hidden, so no background buzzing.
+- **Gate-vs-error needs the RFC7807 code.** `lib/checkinGate.js` owns the
+  brief-§4 gate-code set so the check-in catch can branch Warning vs Error.
 
 ## Testing
-- Unit: the wrapper already no-ops off-native, so jsdom tests are unaffected. If
-  desired, assert the right wrapper fn is called by mocking `lib/native/haptics`.
-- Manual: verify on a physical **iPhone** (simulator + iPad won't buzz).
-
-## Effort
-~0.5 day (wiring only). No backend, no store review impact beyond being a small
-native-depth signal.
+- Unit: `badgePipeline.test.js`, `checkinGate.test.js`; the wrapper no-ops off-
+  native so component tests are unaffected.
+- Manual: physical **iPhone** (simulator/iPad won't buzz).

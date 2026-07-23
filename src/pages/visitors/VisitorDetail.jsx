@@ -10,6 +10,8 @@ import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
 import { isTerminalVisit } from '../../lib/visitHelpers.js';
+import { isCheckinGateError } from '../../lib/checkinGate.js';
+import { notifyError, notifyWarning, tapMedium } from '../../lib/native/haptics.js';
 
 function FieldRow({ label, children }) {
   return (
@@ -71,9 +73,13 @@ export default function VisitorDetail() {
         org_id: activeOrgId,
         building_id: activeScope?.buildingId || undefined,
       });
+      tapMedium(); // accepted (202) — the pipeline takes it from here
       flash.success(`Check-in started for ${visitor.first_name} ${visitor.last_name}.`);
       navigate('/visits');
     } catch (err) {
+      // Gate failures (review required, already in, no badges…) are expected
+      // outcomes → warning; anything else is a real failure → error.
+      if (isCheckinGateError(err)) notifyWarning(); else notifyError();
       flash.error(getUserFacingError(err, 'checkin'));
     } finally {
       setCheckingIn(false);
