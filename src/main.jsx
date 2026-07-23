@@ -16,6 +16,7 @@ import './assets/scss/manager-app.scss'
 import App from './App.jsx'
 import { AuthProvider } from './state/AuthContext.jsx'
 import { NetworkProvider } from './state/NetworkContext.jsx'
+import { ThemeProvider } from './state/ThemeContext.jsx'
 import { FlashProvider } from './lib/flashProvider.jsx'
 import ErrorBoundary from './pages/components/ErrorBoundary.jsx'
 import { isNative } from './lib/platform.js'
@@ -97,13 +98,17 @@ if (!isNative) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <NetworkProvider>
-        <AuthProvider>
-          <FlashProvider>
-            <App />
-          </FlashProvider>
-        </AuthProvider>
-      </NetworkProvider>
+      {/* Theme wraps everything (Login themes too); the server default is
+          pushed in later by UserSettingsProvider once the session loads. */}
+      <ThemeProvider>
+        <NetworkProvider>
+          <AuthProvider>
+            <FlashProvider>
+              <App />
+            </FlashProvider>
+          </AuthProvider>
+        </NetworkProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

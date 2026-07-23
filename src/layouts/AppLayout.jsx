@@ -3,6 +3,8 @@ import { Badge, Dropdown } from 'react-bootstrap';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
 import { useSession } from '../state/useSession.js';
+import { useTheme } from '../state/useTheme.js';
+import { useUserSettings } from '../state/useUserSettings.js';
 import { useNotifications } from '../state/useNotifications.js';
 import { useScopedPolling } from '../lib/useScopedPolling.js';
 import { checkForDeployedUpdate, UPDATE_CHECK_INTERVAL_MS } from '../lib/appUpdate.js';
@@ -48,6 +50,19 @@ function SidebarBrand() {
 export default function AppLayout() {
   const { signOut } = useAuth();
   const { scopeLabel, activeScope, whoami } = useSession();
+  const { mode, setMode } = useTheme();
+  const { settings, updateSettings } = useUserSettings();
+
+  // Owner-locked settings semantics (WS-4): explicit picks apply LOCALLY at
+  // once and roam via the server (best-effort PUT — failure never blocks the
+  // local experience).
+  const pickTheme = (next) => {
+    setMode(next);
+    updateSettings({ theme: next });
+  };
+  const pickTimezone = (tz) => {
+    updateSettings({ user_timezone: tz || null });
+  };
 
   // Self-update (decision #6), split by platform (2026-07-23):
   //
@@ -196,13 +211,46 @@ export default function AppLayout() {
               >
                 <i className="fas fa-circle-user fs-4" aria-hidden="true" />
               </Dropdown.Toggle>
-              <Dropdown.Menu>
+              <Dropdown.Menu style={{ minWidth: 260 }}>
                 {whoami?.email && (
                   <>
                     <Dropdown.Header className="text-truncate">{whoami.email}</Dropdown.Header>
                     <Dropdown.Divider />
                   </>
                 )}
+                {/* Theme: explicit three-way (owner-locked — no cycling). */}
+                <Dropdown.ItemText>
+                  <div className="small text-muted mb-1">Theme</div>
+                  <div className="btn-group btn-group-sm w-100" role="group" aria-label="Theme">
+                    {[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`btn ${mode === value ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => pickTheme(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </Dropdown.ItemText>
+                {/* Timezone (manager-only): server-persisted user timezone,
+                    used by day-bounded views (e.g. Today's Visits — pending). */}
+                <Dropdown.ItemText>
+                  <div className="small text-muted mb-1">Timezone</div>
+                  <select
+                    className="form-select form-select-sm"
+                    value={settings?.user_timezone || ''}
+                    onChange={(e) => pickTimezone(e.target.value)}
+                    aria-label="Timezone"
+                  >
+                    <option value="">Device default</option>
+                    {Intl.supportedValuesOf('timeZone').map((tz) => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
+                </Dropdown.ItemText>
+                <Dropdown.Divider />
                 <Dropdown.Item as={Link} to="/scope">
                   <i className="fas fa-building me-2" aria-hidden="true" />
                   Change scope
