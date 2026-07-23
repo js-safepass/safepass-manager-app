@@ -43,19 +43,80 @@
   }
 }
 
-.app-sidebar-drawer {
+// Always-open bottom tab bar (below lg) — the primary nav on small screens,
+// same navy chrome as the sidebar. Fixed to the viewport bottom, safe-area
+// padded for the iOS home indicator; .app-main reserves matching space below
+// so content scrolls clear of it. Visual pattern ported from the mapping app's
+// sp-bottomnav.
+.app-bottomnav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1030;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
   background: var(--safepass-primary-dark, #0c2556);
-  color: #fff;
-  max-width: 280px;
+  box-shadow: 0 -8px 24px rgba(12, 37, 86, 0.18);
+}
 
-  .btn-close {
-    filter: invert(1);
+.app-bottomnav__tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.4rem 0.25rem;
+  border-radius: 0.35rem;
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.1;
+
+  &:hover {
+    color: #fff;
   }
+
+  &.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.app-bottomnav__icon {
+  position: relative;
+  display: inline-flex;
+  font-size: 1.1rem;
+}
+
+.app-bottomnav__count {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bs-primary, #0d6efd);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+// Compact brand mark shown on the mobile topbar (the sidebar owns it ≥lg).
+.app-topbar-brand {
+  color: var(--safepass-primary-dark, #0c2556);
+  font-size: 1.15rem;
 }
 
 .app-main {
   @media (min-width: 992px) {
     margin-left: 260px;
+  }
+
+  // Reserve room for the fixed bottom nav so the last content clears it.
+  @media (max-width: 991.98px) {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }
 }
 
