@@ -4,6 +4,7 @@ import { ApiProvider } from './state/ApiContext.jsx';
 import { SessionProvider } from './state/SessionContext.jsx';
 import { NotificationsProvider } from './state/NotificationsContext.jsx';
 import FlashOverlay from './components/FlashOverlay.jsx';
+import AndroidBackHandler from './components/AndroidBackHandler.jsx';
 import SessionGate from './components/SessionGate.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import Login from './pages/Login.jsx';
@@ -51,6 +52,7 @@ export default function App() {
         <SessionGate>
           <NotificationsProvider>
             <BrowserRouter>
+              <AndroidBackHandler />
               <FlashOverlay />
               <Routes>
             <Route element={<AppLayout />}>
