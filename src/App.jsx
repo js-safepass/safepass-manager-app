@@ -21,6 +21,21 @@ import ScopePicker from './pages/ScopePicker.jsx';
 export default function App() {
   const { status } = useAuth();
 
+  // Native boot restore (Tier 1): a stored session is being exchanged for
+  // fresh tokens (~1-2s). A quiet brand splash — NOT the Login screen, which
+  // would flash and read as a logout.
+  if (status === 'restoring') {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100 gap-3">
+        <i className="fas fa-shield-halved fs-1 text-primary" aria-hidden="true" />
+        <div className="text-muted small">
+          <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+          Signing you in…
+        </div>
+      </div>
+    );
+  }
+
   if (status !== 'signed_in') {
     return (
       <>
