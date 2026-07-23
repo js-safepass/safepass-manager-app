@@ -146,8 +146,11 @@ export default function VisitsList() {
               <tr>
                 <th>Visitor</th>
                 <th>Status</th>
-                <th className="d-none d-sm-table-cell">Start</th>
-                <th className="d-none d-sm-table-cell">End</th>
+                {/* Always visible (owner feedback 2026-07-23 — phones were
+                    dropping to a two-column table); short format keeps them
+                    narrow enough for 360px. */}
+                <th>Start</th>
+                <th>End</th>
               </tr>
             </thead>
             <tbody>
@@ -160,9 +163,13 @@ export default function VisitsList() {
                 >
                   <td className="fw-semibold">{visitorName(v)}</td>
                   <td><StatusBadge status={v.status} /></td>
-                  <td className="d-none d-sm-table-cell">{formatDateTime(visitStartTime(v)) || '—'}</td>
-                  <td className="d-none d-sm-table-cell">
-                    {visitEndTime(v) ? formatDateTime(visitEndTime(v)) : <span className="text-muted">—</span>}
+                  <td className="small text-nowrap">
+                    {formatDateTime(visitStartTime(v), undefined, { length: 'short' }) || '—'}
+                  </td>
+                  <td className="small text-nowrap">
+                    {visitEndTime(v)
+                      ? formatDateTime(visitEndTime(v), undefined, { length: 'short' })
+                      : <span className="text-muted">—</span>}
                   </td>
                 </tr>
               ))}
