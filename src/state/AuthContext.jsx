@@ -1,18 +1,27 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getUserFacingError } from '../lib/userErrors.js';
 import { getJwtSub } from '../lib/jwtUtil.js';
 import { flattenErrorForLog } from '../lib/errorLog.js';
-import { refreshTokens } from '../lib/cognitoHostedUi.js';
+import { isDefinitiveRefreshFailure, pickBearerToken, refreshTokens } from '../lib/cognitoHostedUi.js';
 import { createFreshTokenProvider } from '../lib/freshToken.js';
 import { AUTH_ACTION, resolveAuthAction } from '../lib/authActions.js';
 import { createAuthFailurePolicy } from '../lib/authFailurePolicy.js';
 import { purgeBrowserSession, redirectToHostedLogout } from '../lib/sessionCleanup.js';
+import { SESSION_STORAGE_KEY, packStoredSession, unpackStoredSession } from '../lib/sessionPersistence.js';
+import { secureStorageGet, secureStorageRemove, secureStorageSet } from '../lib/native/secureStorage.js';
+import { isNative } from '../lib/platform.js';
 import { AuthContext } from './useAuth.js';
 
-// Auth state for an attended app: Cognito tokens live in memory only (never
-// web storage — XSS-exfiltratable; seed bundle DECISIONS D6). A page refresh
-// drops them and the user signs in again; that's the accepted trade-off (no
-// Layer-2 device session — decision #4 in docs/build-plan.md).
+// Auth state for an attended app. Tokens live in memory during a session
+// (never web storage — XSS-exfiltratable; seed bundle DECISIONS D6). On WEB a
+// page refresh drops them and the user signs in again — the accepted
+// trade-off. On NATIVE (amended 2026-07-23, Tier 1 of
+// docs/session-persistence-plan.md) the REFRESH TOKEN — never the ID/access
+// tokens — is persisted to hardware-backed secure storage (Keychain /
+// Keystore, unreachable from JS content, so the D6 objection doesn't apply)
+// and the session silently restores on boot via the refresh grant. The 5-day
+// refresh-token expiry on the Cognito app client is the server-enforced
+// backstop.
 //
 // Token lifetime: the bearer is the Cognito ID token (auth-contract §1) and is
 // short-lived; getFreshIdToken silently runs the refresh-token grant when it
@@ -49,8 +58,26 @@ export function AuthProvider({ children }) {
   const [cognitoUserSub, setCognitoUserSub] = useState(() =>
     isDevMode ? getJwtSub(devToken) : null,
   );
-  const [status, setStatus] = useState(() => (isDevMode ? 'signed_in' : 'signed_out'));
+  // Boot status: native (non-dev) starts in 'restoring' — the stored-session
+  // read + refresh grant resolve it to signed_in or signed_out within ~1-2s;
+  // App.jsx renders a splash for it so Login never flashes mid-restore.
+  const [status, setStatus] = useState(() => {
+    if (isDevMode) return 'signed_in';
+    return isNative ? 'restoring' : 'signed_out';
+  });
   const [error, setError] = useState(null);
+
+  // Secure-storage custody helpers (native no-ops on web). Fire-and-forget by
+  // design: persistence failures must never break the in-memory session —
+  // worst case is a re-login on the next cold start.
+  const persistStoredSession = useCallback((refreshToken) => {
+    const packed = packStoredSession(refreshToken, Date.now());
+    if (!packed) return;
+    secureStorageSet(SESSION_STORAGE_KEY, packed).catch(() => {});
+  }, []);
+  const wipeStoredSession = useCallback(() => {
+    secureStorageRemove(SESSION_STORAGE_KEY).catch(() => {});
+  }, []);
 
   const freshTokenRef = useRef(null);
   // The forced-sign-out decision for plain 401s (strikes + renew-failure
@@ -63,6 +90,9 @@ export function AuthProvider({ children }) {
     tokensRef.current = { idToken: null, refreshToken: null };
     freshTokenRef.current = null; // drop the provider's in-flight/throttle state
     failurePolicyRef.current.reset();
+    // Every sign-out path reaches here (explicit, terminal, threshold-gated),
+    // and all of them mean the session is over — wipe the persisted copy.
+    wipeStoredSession();
     setCognitoUserSub(null);
     setStatus('signed_out');
     setError(null);
@@ -81,7 +111,7 @@ export function AuthProvider({ children }) {
       // config is missing — local state is already cleared above.
       if (hadToken) redirectToHostedLogout();
     }
-  }, [isDevMode]);
+  }, [isDevMode, wipeStoredSession]);
 
   const signIn = useCallback(async ({ token, refreshToken } = {}) => {
     if (isDevMode && !token) {
@@ -102,9 +132,10 @@ export function AuthProvider({ children }) {
     }
     tokensRef.current = { idToken: token, refreshToken: refreshToken || null };
     failurePolicyRef.current.reset();
+    persistStoredSession(refreshToken);
     setCognitoUserSub(getJwtSub(token));
     setStatus('signed_in');
-  }, [isDevMode, devToken]);
+  }, [isDevMode, devToken, persistStoredSession]);
 
   // Async token accessor for the API seam: a fresh token passes through; a
   // stale one refreshes (deduped/throttled in freshToken.js). Refresh failure
@@ -122,21 +153,73 @@ export function AuthProvider({ children }) {
         // the failure policy so a stale transient-failure record can't
         // linger past a working renewal.
         setTokens: (next) => {
+          const rotated = next?.refreshToken
+            && next.refreshToken !== tokensRef.current.refreshToken;
           tokensRef.current = next;
           failurePolicyRef.current.noteRefreshSuccess();
+          // Cognito refresh-token ROTATION: re-persist immediately so the
+          // stored copy is never a dead predecessor token.
+          if (rotated) persistStoredSession(next.refreshToken);
         },
         refresh: refreshTokens,
         // LOGGING + CLASSIFICATION only — never terminal here. The policy
         // records whether this failure was definitive (dead refresh token)
         // or transient (bridge blip); the 401 path consults that record.
+        // DEFINITIVE failures also wipe the persisted copy — that token can
+        // never work again, and keeping it would just replay the failure on
+        // the next cold start.
         onRefreshError: (err) => {
           failurePolicyRef.current.noteRefreshFailure(err);
+          if (isDefinitiveRefreshFailure(err)) wipeStoredSession();
           console.warn('[auth] token refresh failed', flattenErrorForLog(err));
         },
       });
     }
     return freshTokenRef.current(opts);
-  }, [isDevMode]);
+  }, [isDevMode, persistStoredSession, wipeStoredSession]);
+
+  // Boot restore (native only; Tier 1): stored refresh token → refresh grant →
+  // fresh in-memory tokens → signed in, with no Login screen. Failure policy:
+  //   - nothing stored / corrupt → signed_out (normal Login)
+  //   - DEFINITIVE grant failure (invalid_grant — revoked or past the 5-day
+  //     expiry) → wipe + signed_out; the stored token can never work again
+  //   - TRANSIENT failure (offline boot, bridge blip) → signed_out but KEEP
+  //     the stored token — the next cold start retries it
+  useEffect(() => {
+    if (!isNative || isDevMode) return;
+    let cancelled = false;
+    (async () => {
+      let stored = null;
+      try {
+        stored = unpackStoredSession(await secureStorageGet(SESSION_STORAGE_KEY));
+      } catch {
+        stored = null; // plugin unavailable/failed — treat as nothing stored
+      }
+      if (!stored) {
+        if (!cancelled) setStatus('signed_out');
+        return;
+      }
+      try {
+        const response = await refreshTokens({ refreshToken: stored.refreshToken });
+        const idToken = pickBearerToken(response);
+        if (!idToken) throw new Error('Restore grant returned no id_token');
+        const refreshToken = response.refresh_token || stored.refreshToken;
+        if (cancelled) return;
+        tokensRef.current = { idToken, refreshToken };
+        failurePolicyRef.current.reset();
+        if (response.refresh_token) persistStoredSession(refreshToken);
+        setCognitoUserSub(getJwtSub(idToken));
+        setStatus('signed_in');
+      } catch (err) {
+        if (isDefinitiveRefreshFailure(err)) wipeStoredSession();
+        console.warn('[auth] session restore failed', flattenErrorForLog(err));
+        if (!cancelled) setStatus('signed_out');
+      }
+    })();
+    return () => { cancelled = true; };
+    // Boot-once by design; helpers are stable useCallbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Called by the API seam on any auth-relevant failure, WITH the RFC-7807
   // code ({ code, status }). Branch on the code (auth-contract §2) — each drives
