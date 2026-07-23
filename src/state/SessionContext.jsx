@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './useApi.js';
+import { useFlash } from '../lib/flashProvider.jsx';
 import { getUserFacingError } from '../lib/userErrors.js';
 import { classifyWhoami, whoamiOrgIds } from '../lib/whoami.js';
 import { SessionContext } from './useSession.js';
@@ -38,6 +39,7 @@ function readStoredOrgId() {
 // screens retry into a wall. `sessionStatus` is monotonic once 'ready'.
 export function SessionProvider({ children }) {
   const api = useApi();
+  const flash = useFlash();
   const [whoami, setWhoami] = useState(null);
   const [scopes, setScopes] = useState(null);
   // loading | ready | no_access | error
@@ -114,6 +116,52 @@ export function SessionProvider({ children }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Reconcile the persisted sub-scope once per session (scope-spec Q-A, fleet
+  // contract): a tier that no longer exists (renamed org structure, revoked
+  // grant) walks the chain UP to the nearest valid point — with a toast — so
+  // screens never filter against a dead id and silently show empty lists.
+  // Location is validated before building (an invalid location invalidates
+  // its buildings); division is display-only and never filters, so a stale
+  // one rides along harmlessly until the next re-pick. Transient fetch
+  // failures leave the scope untouched (validated again next session).
+  const scopeValidatedRef = useRef(false);
+  useEffect(() => {
+    if (sessionStatus !== 'ready' || scopeValidatedRef.current) return;
+    if (!activeOrgId || !activeScope || (!activeScope.locationId && !activeScope.buildingId)) {
+      scopeValidatedRef.current = true;
+      return;
+    }
+    scopeValidatedRef.current = true;
+    (async () => {
+      try {
+        const next = { ...activeScope };
+        let walked = false;
+        if (next.locationId) {
+          const res = await api.listLocations(activeOrgId, { limit: 200 });
+          if (!(res?.data || []).some((l) => l.id === next.locationId)) {
+            delete next.locationId; delete next.locationName;
+            delete next.buildingId; delete next.buildingName; // children of a dead tier
+            walked = true;
+          }
+        }
+        if (!walked && next.buildingId) {
+          const res = await api.listBuildings(activeOrgId, { limit: 200 });
+          if (!(res?.data || []).some((b) => b.id === next.buildingId)) {
+            delete next.buildingId; delete next.buildingName;
+            walked = true;
+          }
+        }
+        if (walked) {
+          const hasTiers = next.divisionId || next.locationId || next.buildingId;
+          setActiveScope(hasTiers ? next : null);
+          flash.warning('Part of your saved workspace scope is no longer available — it was reset to the nearest valid level.');
+        }
+      } catch {
+        // Transient — keep the scope; next session re-validates.
+      }
+    })();
+  }, [sessionStatus, activeOrgId, activeScope, api, setActiveScope, flash]);
 
   const value = useMemo(
     () => ({

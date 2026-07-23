@@ -9,18 +9,21 @@ import { render, screen } from '@testing-library/react';
 import { ApiContext } from './useApi.js';
 import { SessionProvider } from './SessionContext.jsx';
 import { AuthProvider } from './AuthContext.jsx';
+import { FlashProvider } from '../lib/flashProvider.jsx';
 import SessionGate from '../components/SessionGate.jsx';
 
 function renderWithApi(api) {
   return render(
     <AuthProvider>
-      <ApiContext.Provider value={api}>
-        <SessionProvider>
-          <SessionGate>
-            <div>PROTECTED APP CONTENT</div>
-          </SessionGate>
-        </SessionProvider>
-      </ApiContext.Provider>
+      <FlashProvider>
+        <ApiContext.Provider value={api}>
+          <SessionProvider>
+            <SessionGate>
+              <div>PROTECTED APP CONTENT</div>
+            </SessionGate>
+          </SessionProvider>
+        </ApiContext.Provider>
+      </FlashProvider>
     </AuthProvider>,
   );
 }

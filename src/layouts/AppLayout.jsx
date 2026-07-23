@@ -155,14 +155,31 @@ export default function AppLayout() {
           <span className="app-topbar-brand d-lg-none" aria-hidden="true">
             <i className="fas fa-shield-halved" />
           </span>
-          {/* Resolved scope chain — click to open the scope drill-down. */}
-          <Link to="/scope" className="text-muted small text-truncate text-decoration-none" title="Change workspace scope">
+          {/* Resolved scope chain — click to open the scope drill-down.
+              Fleet parity (scope-spec §4/§5): deepest-tier colored dot + an
+              explicit caret so the chain reads as a control, not a label. */}
+          <Link to="/scope" className="text-muted small text-truncate text-decoration-none d-flex align-items-center gap-2" title="Change workspace scope">
             {scopeLabel ? (
               <>
-                <i className="fas fa-building me-2" aria-hidden="true" />
-                {[scopeLabel, activeScope?.divisionName, activeScope?.locationName, activeScope?.buildingName]
-                  .filter(Boolean)
-                  .join(' › ')}
+                <span
+                  className="app-scope-dot"
+                  aria-hidden="true"
+                  style={{
+                    background: activeScope?.buildingName
+                      ? 'var(--sp-scope-building)'
+                      : activeScope?.locationName
+                        ? 'var(--sp-scope-location)'
+                        : activeScope?.divisionName
+                          ? 'var(--sp-scope-division)'
+                          : 'var(--sp-scope-org)',
+                  }}
+                />
+                <span className="text-truncate">
+                  {[scopeLabel, activeScope?.divisionName, activeScope?.locationName, activeScope?.buildingName]
+                    .filter(Boolean)
+                    .join(' › ')}
+                </span>
+                <i className="fas fa-chevron-down" style={{ fontSize: '0.6rem' }} aria-hidden="true" />
               </>
             ) : null}
           </Link>
