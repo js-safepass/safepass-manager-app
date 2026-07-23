@@ -36,11 +36,14 @@
 - Q-A: When a persisted mapping floor no longer exists (deleted/renamed),
   land on the building tier with a toast, or silently at the deepest valid
   tier?
+  A: Run back up the scope chan to the nearest valid point and show a toast
 - Q-B: Manager's routed `/scope` vs mapping's stateful full-screen — keep
   each app's navigation idiom (recommended) or force one?
+  A: Both selector methods are valid and interesting. One thing, the manager app could theoretically bail early (for example if you want to monitor for a whole location or org) - We can unify the feel of these flows, but the function likely will need to diverge a little bit.
 - Q-C: Does per-tier editing need a "clear below this tier" affordance, or
   does re-picking a tier implicitly clear descendants (recommended:
   implicit)?
+  A: Implicit clear, changing a higher value changes possible inheritance, a floor of building B is not valid if building is changed to C, and building B and C may be at different locations etc.
 
 ## Sequencing
 Depends on the `feat/bottom-nav` revive (it carries `9f3708f`). Build order:
