@@ -39,16 +39,19 @@ export default function VisitsList() {
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
     try {
-      // Narrow to the picked workspace scope (spec: /visits accepts
-      // division/location/building filters). Unpicked levels stay undefined.
+      // Narrow to the picked workspace scope. /visits filters on
+      // location_id/building_id only — division_id is NOT a supported filter
+      // (backend parseVisitListFilters, verified 2026-07-23), so a
+      // division-only scope intentionally shows the whole org. The expand key
+      // is plural 'visitors' (backend expandHas is an exact match; the
+      // singular silently no-ops). Unpicked levels stay undefined.
       const page = await api.listVisits({
         org_id: activeOrgId,
-        division_id: activeScope?.divisionId || undefined,
         location_id: activeScope?.locationId || undefined,
         building_id: activeScope?.buildingId || undefined,
         limit: 30,
         status: statusFilter || undefined,
-        expand: 'visitor',
+        expand: 'visitors',
       });
       const visits = page?.data || [];
       // Badge completion is a background transition observed between polls

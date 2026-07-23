@@ -66,11 +66,14 @@ export default function VisitorDetail() {
   const checkIn = async () => {
     setCheckingIn(true);
     try {
-      // org_id per the check-in contract; building_id from the picked
-      // workspace scope — check-in requires building context (brief §4), and
-      // a missing one surfaces as the BUILDING_REQUIRED catalogue error.
+      // org_id per the check-in contract; location_id + building_id from the
+      // picked workspace scope — CheckInRequest requires BOTH (backend rejects
+      // with LOCATION_REQUIRED / BUILDING_REQUIRED, verified against
+      // sentinel-datamanager visits.go 2026-07-23). Unpicked levels stay
+      // undefined and surface those catalogue errors rather than a silent 400.
       await api.checkin(visitorId, {
         org_id: activeOrgId,
+        location_id: activeScope?.locationId || undefined,
         building_id: activeScope?.buildingId || undefined,
       });
       tapMedium(); // accepted (202) — the pipeline takes it from here
