@@ -20,8 +20,44 @@ import { FlashProvider } from './lib/flashProvider.jsx'
 import ErrorBoundary from './pages/components/ErrorBoundary.jsx'
 import { isNative } from './lib/platform.js'
 
-// No browser gate here (unlike the kiosk chassis): SafePass Manager is
-// deliberately usable from a desktop browser as well as the Capacitor shells.
+// Production browser gate (App Store guideline 4.2). SafePass Manager is a
+// live-web-view app: the JS served at the prod origin is loaded by the Capacitor
+// shells via server.url, so a random browser visitor hitting the PROD url should
+// NOT get a working app — that reads as a generic web wrapper. Desktop operators
+// use the existing web operator UI instead. Native (isNative) bypasses; staging
+// + dev leave the flag unset so the web build stays usable for QA. Prod-only
+// opt-in via VITE_BLOCK_BROWSER_ACCESS (.env.production). Dropping desktop
+// support here is intentional (confirmed 2026-07-23), superseding the earlier
+// inferred "browser is a supported surface" stance.
+if (!isNative && import.meta.env.VITE_BLOCK_BROWSER_ACCESS === 'true') {
+  const root = document.getElementById('root');
+  if (root) {
+    // TODO(store-links): set the real App Store id once the listing is live.
+    const appStoreUrl = 'https://apps.apple.com/app/id0000000000';
+    const playUrl = 'https://play.google.com/store/apps/details?id=com.safepass.manager';
+    const btn = 'display:inline-block;padding:10px 18px;border-radius:8px;background:#4c8bf5;color:#fff;text-decoration:none;font-weight:600;';
+    root.innerHTML = `
+      <div style="position:fixed;inset:0;background:#1c2033;color:#fff;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <main style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;">
+          <h1 style="font-size:2.25rem;margin:0 0 16px;font-weight:600;">SafePass Manager</h1>
+          <p style="font-size:1.1rem;max-width:520px;margin:0 0 24px;opacity:0.85;line-height:1.5;">
+            Get the SafePass Manager app for your phone.
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+            <a href="${appStoreUrl}" style="${btn}">App Store</a>
+            <a href="${playUrl}" style="${btn}">Google Play</a>
+          </div>
+        </main>
+        <footer style="padding:24px;text-align:center;font-size:0.9rem;opacity:0.7;line-height:1.5;">
+          <div>Visitor management for organizations</div>
+          <div style="margin-top:4px;"><a href="https://safepass.com" style="color:#4c8bf5;text-decoration:none;">safepass.com</a></div>
+        </footer>
+      </div>
+    `;
+  }
+  // Stop — do not mount the React app on a production browser.
+  throw new Error('SafePass Manager is app-only on production; browser access gated (guideline 4.2).');
+}
 
 // Content Security Policy — two layers, always both present in production:
 //   1. public/_headers is the AUTHORITATIVE edge policy (Cloudflare Workers
