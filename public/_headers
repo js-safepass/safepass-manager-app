@@ -26,8 +26,20 @@
 #                           any https origin is permitted (plus SSE + media)
 #   img-src data: blob: https:  signed S3 media + data/blob previews
 #   font-src 'self'         DM Sans is self-hosted via @fontsource (bundled)
+# Cache policy (2026-07-23, self-update fix): the WebView shells cache
+# aggressively, so a cold start could boot a STALE bundle. HTML (and anything
+# unhashed) must revalidate every load; hashed /assets/* are immutable by
+# construction so they cache forever; /version.json is the update probe and
+# must never be cached anywhere. Later rules override earlier ones per header.
 /*
   Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https:
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/version.json
+  Cache-Control: no-store

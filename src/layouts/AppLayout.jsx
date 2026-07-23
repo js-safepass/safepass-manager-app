@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Badge, Dropdown } from 'react-bootstrap';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../state/useAuth.js';
@@ -5,6 +6,8 @@ import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
 import { useScopedPolling } from '../lib/useScopedPolling.js';
 import { checkForDeployedUpdate, UPDATE_CHECK_INTERVAL_MS } from '../lib/appUpdate.js';
+import { onAppStateChange } from '../lib/native/app-lifecycle.js';
+import { isNative } from '../lib/platform.js';
 import BottomNav from '../components/BottomNav.jsx';
 import { NAV_ITEMS } from './navItems.js';
 
@@ -46,21 +49,47 @@ export default function AppLayout() {
   const { signOut } = useAuth();
   const { scopeLabel, activeScope, whoami } = useSession();
 
-  // Self-update (decision #6): staff leave this app open all day, and D1
-  // deploys never restart a running tab. Poll /version.json every 15 min and
-  // reload ONLY while the tab is hidden — the strictest reading of "never
-  // reload mid-interaction": a hidden tab can't be mid-anything. A visible
-  // stale tab picks the deploy up the next time the user tabs away.
+  // Self-update (decision #6), split by platform (2026-07-23):
+  //
+  // WEB (unchanged): poll every 15 min, reload ONLY while the tab is hidden —
+  // a hidden tab can't be mid-anything, and background browser tabs keep
+  // ticking timers so the check actually runs.
+  //
+  // NATIVE: the hidden-only rule can never fire in a Capacitor shell — the OS
+  // FREEZES WebView timers in the background (no poll runs while "hidden") and
+  // a foregrounded app is never "hidden" (so a reload was never allowed). The
+  // shell therefore stayed on a stale bundle indefinitely. Policy ported from
+  // the kiosk's state-gated pattern (Kiosk.jsx: check immediately when safe,
+  // poll while safe): reload when NOT in an active flow — here "active" means
+  // any open modal (a form mid-entry would be wiped). Checks run at boot, on
+  // foreground resume, and on each poll tick. An auto-reload lands on Login
+  // (tokens are in-memory by design); the SSO cookie gives one-click re-entry.
+  const safeToReloadNatively = () => !document.querySelector('.modal.show');
   useScopedPolling({
     channel: 'app-update',
     intervalMs: UPDATE_CHECK_INTERVAL_MS,
     requireVisible: false,
     poll: async () => {
-      if (document.visibilityState === 'hidden') {
+      if (isNative) {
+        if (safeToReloadNatively()) await checkForDeployedUpdate();
+      } else if (document.visibilityState === 'hidden') {
         await checkForDeployedUpdate();
       }
     },
   });
+  useEffect(() => {
+    if (!isNative) return undefined;
+    // Boot/load: a cold start served from the WebView HTTP cache can be a
+    // stale bundle — catch it immediately (reload attempts are capped in
+    // appUpdate.js, so a flapping version.json can't loop the shell).
+    checkForDeployedUpdate();
+    // Resume: timers were frozen while backgrounded; returning to the app is
+    // the natural not-mid-interaction moment to catch up.
+    return onAppStateChange(({ isActive }) => {
+      if (isActive && safeToReloadNatively()) checkForDeployedUpdate();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="app-shell">
