@@ -3,6 +3,19 @@
 // the runtime CSS vars. Keep this file to shell/layout concerns; component
 // styling belongs to the ported theme.
 
+// Safe-area insets, cross-platform. iOS (WKWebView + viewport-fit=cover in
+// index.html) reports real values through env(); Android's WebView does NOT —
+// there, Capacitor's built-in SystemBars plugin injects --safe-area-inset-*
+// custom properties instead (@capacitor/android SystemBars.injectSafeAreaCSS,
+// verified 8.4.2). var(--…, env(--…, 0px)) covers both, and resolves to 0 in
+// desktop browsers. Use ONLY these variables for insets — never raw env().
+:root {
+  --app-inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --app-inset-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --app-inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --app-inset-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -11,6 +24,9 @@
   position: fixed;
   inset: 0 auto 0 0;
   width: 260px;
+  // ≥lg tablets in landscape still have a status bar / notch.
+  padding-top: var(--app-inset-top);
+  padding-left: var(--app-inset-left);
   background: var(--safepass-primary-dark, #0c2556);
   color: #fff;
   z-index: 1030;
@@ -54,7 +70,10 @@
   z-index: 1030;
   display: flex;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
+  padding: 0.25rem
+    calc(0.5rem + var(--app-inset-right))
+    calc(0.25rem + var(--app-inset-bottom))
+    calc(0.5rem + var(--app-inset-left));
   background: var(--safepass-primary-dark, #0c2556);
   box-shadow: 0 -8px 24px rgba(12, 37, 86, 0.18);
 }
@@ -121,12 +140,17 @@
 
   // Reserve room for the fixed bottom nav so the last content clears it.
   @media (max-width: 991.98px) {
-    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(4.25rem + var(--app-inset-bottom));
   }
 }
 
+// Safe-area handling: the native shells render edge-to-edge, so the sticky
+// topbar must push its CONTENT below the phone's status bar (notch/camera).
 .app-topbar {
-  height: 64px;
+  height: calc(64px + var(--app-inset-top));
+  padding-top: var(--app-inset-top);
+  padding-left: var(--app-inset-left);
+  padding-right: var(--app-inset-right);
   background: var(--bs-body-bg, #fff);
   border-bottom: 1px solid var(--bs-border-color, #efefef);
   position: sticky;
