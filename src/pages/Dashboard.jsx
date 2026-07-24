@@ -83,8 +83,13 @@ export default function Dashboard() {
                       style={{ fontSize: '0.5rem' }}
                       aria-hidden="true"
                     />
-                    <span className={`flex-grow-1 ${n.read_at ? 'text-muted' : 'fw-semibold'}`}>{n.title}</span>
-                    <span className="text-muted small text-nowrap">{formatDateTime(n.created_at)}</span>
+                    {/* Title on its own row ABOVE the timestamp (owner
+                        feedback 2026-07-24) — side by side, long titles
+                        fought the nowrap timestamp on phones. */}
+                    <span className="flex-grow-1 min-w-0">
+                      <span className={`d-block ${n.read_at ? 'text-muted' : 'fw-semibold'}`}>{n.title}</span>
+                      <span className="d-block text-muted small">{formatDateTime(n.created_at)}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
