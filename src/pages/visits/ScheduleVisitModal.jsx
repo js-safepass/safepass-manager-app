@@ -11,6 +11,7 @@ import {
   defaultStartValue,
   fromDatetimeLocalValue,
   minStartValue,
+  toDatetimeLocalValue,
   validateSchedule,
 } from '../../lib/scheduleVisitForm.js';
 import { notifyError, notifySuccess, tapLight } from '../../lib/native/haptics.js';
@@ -26,7 +27,13 @@ import { notifyError, notifySuccess, tapLight } from '../../lib/native/haptics.j
 // doesn't require building, but confirm hard-fails 400 BUILDING_REQUIRED
 // without one — attaching it here keeps every visit this app creates
 // check-in-able (the acknowledged backend footgun).
-export default function ScheduleVisitModal({ show, presetVisitor, onClose, onScheduled }) {
+//
+// Reschedule mode (`replaceVisit`, plan step 5): the backend has no visit
+// PATCH by design, so rescheduling is CREATE-then-cancel — the new visit
+// lands first so a failure can never strand the visitor with nothing; a
+// cancel failure after a successful create degrades to a warning naming the
+// manual cleanup.
+export default function ScheduleVisitModal({ show, presetVisitor, replaceVisit, onClose, onScheduled }) {
   const api = useApi();
   const { activeOrgId, activeScope } = useSession();
   const flash = useFlash();
@@ -48,10 +55,19 @@ export default function ScheduleVisitModal({ show, presetVisitor, onClose, onSch
     setVisitor(presetVisitor || null);
     setQuery('');
     setResults(null);
-    setStart(defaultStartValue());
-    setEnd('');
+    // Reschedule prefills the old slot — unless it's already in the past
+    // (overdue reschedules are the common case), where "next hour" beats an
+    // un-submittable stale time.
+    const oldStartMs = replaceVisit?.start_time ? new Date(replaceVisit.start_time).getTime() : null;
+    if (oldStartMs && oldStartMs > Date.now()) {
+      setStart(toDatetimeLocalValue(oldStartMs));
+      setEnd(replaceVisit.end_time ? toDatetimeLocalValue(new Date(replaceVisit.end_time).getTime()) : '');
+    } else {
+      setStart(defaultStartValue());
+      setEnd('');
+    }
     setError(null);
-  }, [show, presetVisitor]);
+  }, [show, presetVisitor, replaceVisit]);
 
   // Debounced visitor search; sequence guard drops stale responses.
   useEffect(() => {
@@ -97,8 +113,22 @@ export default function ScheduleVisitModal({ show, presetVisitor, onClose, onSch
         start_time: fromDatetimeLocalValue(start),
         ...(end ? { end_time: fromDatetimeLocalValue(end) } : {}),
       });
+      let cancelFailed = false;
+      if (replaceVisit) {
+        try {
+          await api.cancelVisit(replaceVisit.id);
+        } catch {
+          cancelFailed = true;
+        }
+      }
       notifySuccess();
-      flash.success(`Visit scheduled for ${visitor.first_name} ${visitor.last_name}.`);
+      if (cancelFailed) {
+        flash.warning('New visit scheduled, but the original could not be cancelled — cancel it from the visits list.');
+      } else {
+        flash.success(replaceVisit
+          ? `Visit rescheduled for ${visitor.first_name} ${visitor.last_name}.`
+          : `Visit scheduled for ${visitor.first_name} ${visitor.last_name}.`);
+      }
       onScheduled?.();
       onClose();
     } catch (err) {
@@ -114,7 +144,7 @@ export default function ScheduleVisitModal({ show, presetVisitor, onClose, onSch
       <Modal show={show} onHide={saving ? undefined : onClose} centered>
         <Form onSubmit={submit}>
           <Modal.Header closeButton={!saving}>
-            <Modal.Title as="h5">Schedule visit</Modal.Title>
+            <Modal.Title as="h5">{replaceVisit ? 'Reschedule visit' : 'Schedule visit'}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             {error && <Alert variant="danger">{error}</Alert>}
@@ -239,7 +269,7 @@ export default function ScheduleVisitModal({ show, presetVisitor, onClose, onSch
                   Scheduling…
                 </>
               ) : (
-                'Schedule visit'
+                replaceVisit ? 'Reschedule' : 'Schedule visit'
               )}
             </Button>
           </Modal.Footer>

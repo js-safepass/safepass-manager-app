@@ -1,7 +1,12 @@
 # Scheduled visits — surfacing the hidden workflow (plan of record)
 
-> **Status:** **SCOPED + GREENLIT 2026-07-24** (owner-approved same day).
-> Not started. Sequencing below; step 0 is a prerequisite bug fix.
+> **Status:** **BUILT 2026-07-24** (scoped, greenlit, and steps 0–5 all
+> landed the same day: PRs #56 Upcoming view, #57 Dashboard arrivals +
+> `?open=` deep-link, #59 Schedule-visit form, #60 VisitorDetail scheduled
+> awareness + scheduled-match preview, and the step-5 PR — reschedule +
+> notification deep-links). Remaining: the **staging verification pass**
+> after the backend release deploys (IN-list filters, scheduled-match live,
+> expiry worker enabled) — see Acceptance.
 > Backend prerequisites ride the **2026-07-24 deploy window** (owner-confirmed):
 > `feat/visits-status-inlist` (PR #256) and `GET /v1/visitors/{id}/scheduled-match`
 > (PR #251) are merged to backend `dev` on release PR #260, deploying
