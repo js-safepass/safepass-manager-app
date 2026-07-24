@@ -46,6 +46,7 @@ export default function VisitorDetail() {
   const [error, setError] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [rescheduleVisit, setRescheduleVisit] = useState(null);
   const [checkingIn, setCheckingIn] = useState(false);
   // History row tap opens the same action modal as the visits list — one
   // inspect surface fleet-wide (owner greenlight 2026-07-24).
@@ -296,9 +297,10 @@ export default function VisitorDetail() {
       />
 
       <ScheduleVisitModal
-        show={showSchedule}
+        show={showSchedule || Boolean(rescheduleVisit)}
         presetVisitor={visitor}
-        onClose={() => setShowSchedule(false)}
+        replaceVisit={rescheduleVisit}
+        onClose={() => { setShowSchedule(false); setRescheduleVisit(null); }}
         onScheduled={() => load()}
       />
       {ConfirmDialog}
@@ -311,6 +313,7 @@ export default function VisitorDetail() {
           onConfirm={act('Check-in started.', api.confirmVisit)}
           onCheckout={act('Visit checked out.', api.checkoutVisit)}
           onCancel={act('Visit cancelled.', api.cancelVisit, notifyWarning)}
+          onReschedule={(v) => { setActiveVisit(null); setRescheduleVisit(v); }}
           onClose={() => setActiveVisit(null)}
         />
       )}

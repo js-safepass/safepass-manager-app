@@ -467,12 +467,15 @@ export function createMockManagerApi() {
     updated_at: iso(30 * DAY),
   };
 
+  // visit_id / visitor_id are top-level notification fields on the wire
+  // (notifications.Notification, verified 2026-07-24) — the inbox deep-links
+  // from them. device_offline carries neither: it must render un-linked.
   const notifications = [
-    { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null },
-    { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null },
-    { id: 'ntf_003', type: 'checkin_failed', severity: 'warning', title: 'Check-in failed at Main Lobby kiosk — no badges available', created_at: iso(3 * HOUR), read_at: null },
-    { id: 'ntf_004', type: 'visit_completed', severity: 'info', title: 'Wei Chen checked out', created_at: iso(5 * HOUR), read_at: iso(4 * HOUR) },
-    { id: 'ntf_005', type: 'review_required', severity: 'warning', title: 'New visitor requires review: Omar Hassan', created_at: iso(8 * HOUR), read_at: iso(7 * HOUR) },
+    { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null, visit_id: 'visit_003', visitor_id: 'visitor_001' },
+    { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null, visit_id: 'visit_002', visitor_id: 'visitor_007' },
+    { id: 'ntf_003', type: 'checkin_failed', severity: 'warning', title: 'Check-in failed at Main Lobby kiosk — no badges available', created_at: iso(3 * HOUR), read_at: null, visitor_id: 'visitor_013' },
+    { id: 'ntf_004', type: 'visit_completed', severity: 'info', title: 'Wei Chen checked out', created_at: iso(5 * HOUR), read_at: iso(4 * HOUR), visit_id: 'visit_001', visitor_id: 'visitor_003' },
+    { id: 'ntf_005', type: 'review_required', severity: 'warning', title: 'New visitor requires review: Omar Hassan', created_at: iso(8 * HOUR), read_at: iso(7 * HOUR), visitor_id: 'visitor_016' },
     { id: 'ntf_006', type: 'device_offline', severity: 'danger', title: 'Badge encoder BE-02 went offline', created_at: iso(26 * HOUR), read_at: iso(20 * HOUR) },
   ];
 

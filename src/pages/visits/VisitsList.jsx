@@ -63,6 +63,9 @@ export default function VisitsList() {
   const [activeVisit, setActiveVisit] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  // Pending visit being rescheduled (create-then-cancel through the schedule
+  // modal); null = plain scheduling.
+  const [rescheduleVisit, setRescheduleVisit] = useState(null);
 
   const view = VIEWS.find((v) => v.key === viewKey) || VIEWS[0];
 
@@ -136,10 +139,25 @@ export default function VisitsList() {
       setShowSchedule(true);
     } else {
       const match = rows.find((v) => v.id === openId);
-      if (match) setActiveVisit(match);
+      if (match) {
+        setActiveVisit(match);
+      } else {
+        // Not on the current page — notification deep-links mostly reference
+        // LIVE visits while Upcoming is the default view. Fetch directly and
+        // jump to the view that owns the status, so the modal opens and the
+        // poll's keep-fresh finds it; silent when it's truly gone.
+        api.getVisit(openId).then((res) => {
+          const v = res?.data;
+          if (!v) return;
+          setViewKey(v.status === 'pending' ? 'upcoming'
+            : ['checking_in', 'active', 'checking_out'].includes(v.status) ? 'onsite'
+              : 'history');
+          setActiveVisit(v);
+        }).catch(() => {});
+      }
     }
     setSearchParams({}, { replace: true });
-  }, [rows, loading, searchParams, setSearchParams]);
+  }, [rows, loading, searchParams, setSearchParams, api]);
 
   const visitorName = (v) => {
     const visitor = visitorsById[v.visitor_id];
@@ -339,12 +357,21 @@ export default function VisitsList() {
           onConfirm={checkIn}
           onCheckout={checkout}
           onCancel={cancel}
+          onReschedule={(v) => { setActiveVisit(null); setRescheduleVisit(v); }}
           onClose={() => setActiveVisit(null)}
         />
       )}
       <ScheduleVisitModal
-        show={showSchedule}
-        onClose={() => setShowSchedule(false)}
+        show={showSchedule || Boolean(rescheduleVisit)}
+        replaceVisit={rescheduleVisit}
+        // Reschedule keeps the visit's visitor fixed; the expand may have
+        // missed (page boundary), so fall back to a name-bearing stub — the
+        // form only needs id + display name.
+        presetVisitor={rescheduleVisit
+          ? (visitorsById[rescheduleVisit.visitor_id]
+            || { id: rescheduleVisit.visitor_id, first_name: rescheduleVisit.visitor_name || rescheduleVisit.visitor_id, last_name: '' })
+          : undefined}
+        onClose={() => { setShowSchedule(false); setRescheduleVisit(null); }}
         onScheduled={() => load({ quiet: true })}
       />
       {ConfirmDialog}
