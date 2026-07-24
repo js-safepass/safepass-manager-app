@@ -686,6 +686,9 @@ export function createMockManagerApi() {
         version: 1,
         check_in_requested_at: new Date().toISOString(),
         ...payload,
+        // VisitOut carries the linked visitor's name (the real backend
+        // resolves it; visitor_name in the REQUEST is dropped — D1).
+        visitor_name: payload.visitor_id ? mockVisitorName(payload.visitor_id) : '',
       };
       visits.unshift(visit);
       return { data: visit };

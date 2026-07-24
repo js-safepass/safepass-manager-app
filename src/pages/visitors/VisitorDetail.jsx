@@ -5,6 +5,7 @@ import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import VisitorFormModal from './VisitorFormModal.jsx';
 import VisitActionModal from '../visits/VisitActionModal.jsx';
+import ScheduleVisitModal from '../visits/ScheduleVisitModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
@@ -40,6 +41,7 @@ export default function VisitorDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   // History row tap opens the same action modal as the visits list — one
   // inspect surface fleet-wide (owner greenlight 2026-07-24).
@@ -142,6 +144,10 @@ export default function VisitorDetail() {
           <i className="fas fa-pen me-2" aria-hidden="true" />
           Edit
         </Button>
+        <Button variant="outline-primary" onClick={() => setShowSchedule(true)}>
+          <i className="fas fa-calendar-plus me-2" aria-hidden="true" />
+          Schedule
+        </Button>
         <Button
           variant="primary"
           onClick={checkIn}
@@ -233,6 +239,13 @@ export default function VisitorDetail() {
         visitor={visitor}
         onClose={() => setShowEdit(false)}
         onSaved={() => load()}
+      />
+
+      <ScheduleVisitModal
+        show={showSchedule}
+        presetVisitor={visitor}
+        onClose={() => setShowSchedule(false)}
+        onScheduled={() => load()}
       />
 
       {activeVisit && (
