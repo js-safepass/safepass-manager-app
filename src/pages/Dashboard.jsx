@@ -187,7 +187,11 @@ export default function Dashboard() {
         <Col lg={5}>
           <SectionCard title="Quick actions">
             <div className="d-grid gap-2">
-              <Link to="/visitors" className="btn btn-primary">
+              <Link to="/visits?schedule=1" className="btn btn-primary">
+                <i className="fas fa-calendar-plus me-2" aria-hidden="true" />
+                Schedule a visit
+              </Link>
+              <Link to="/visitors" className="btn btn-outline-primary">
                 <i className="fas fa-users me-2" aria-hidden="true" />
                 Visitor directory
               </Link>

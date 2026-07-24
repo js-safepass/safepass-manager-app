@@ -7,6 +7,7 @@ import PullToRefresh from '../../components/PullToRefresh.jsx';
 import VisitScheduleLabel from '../../components/VisitScheduleLabel.jsx';
 import { useConfirmModal } from '../../components/ConfirmModal.jsx';
 import VisitActionModal from './VisitActionModal.jsx';
+import ScheduleVisitModal from './ScheduleVisitModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
@@ -18,7 +19,7 @@ import { hostContactName } from '../../lib/visitHost.js';
 import { groupUpcomingVisits } from '../../lib/upcomingVisits.js';
 import { badgeStatusMap, newlyEncodedReady } from '../../lib/badgePipeline.js';
 import { isCheckinGateError } from '../../lib/checkinGate.js';
-import { notifyError, notifySuccess, notifyWarning } from '../../lib/native/haptics.js';
+import { notifyError, notifySuccess, notifyWarning, tapLight } from '../../lib/native/haptics.js';
 
 // Visit operations, split into the desk's three working modes (scheduled-visits
 // plan step 1, docs/scheduled-visits-plan.md): Upcoming (pending arrivals,
@@ -61,6 +62,7 @@ export default function VisitsList() {
   // The visit whose action modal is open (null = closed) + in-flight guard.
   const [activeVisit, setActiveVisit] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const view = VIEWS.find((v) => v.key === viewKey) || VIEWS[0];
 
@@ -121,15 +123,21 @@ export default function VisitsList() {
   // later ride the same seam): once rows land, open that visit's modal and
   // strip the param. One-shot — if the visit isn't on the current page
   // (checked in meanwhile, other scope), the param clears silently rather
-  // than re-arming on every poll.
+  // than re-arming on every poll. ?schedule=1 (Dashboard quick action) opens
+  // the schedule form the same one-shot way.
   const [searchParams, setSearchParams] = useSearchParams();
   const openParamConsumedRef = useRef(false);
   useEffect(() => {
     const openId = searchParams.get('open');
-    if (!openId || openParamConsumedRef.current || loading) return;
+    const wantSchedule = searchParams.get('schedule');
+    if ((!openId && !wantSchedule) || openParamConsumedRef.current || loading) return;
     openParamConsumedRef.current = true;
-    const match = rows.find((v) => v.id === openId);
-    if (match) setActiveVisit(match);
+    if (wantSchedule) {
+      setShowSchedule(true);
+    } else {
+      const match = rows.find((v) => v.id === openId);
+      if (match) setActiveVisit(match);
+    }
     setSearchParams({}, { replace: true });
   }, [rows, loading, searchParams, setSearchParams]);
 
@@ -219,6 +227,14 @@ export default function VisitsList() {
     <>
       <div className="d-flex align-items-center justify-content-between mb-3">
         <h4 className="fw-bold mb-0">Visits</h4>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => { tapLight(); setShowSchedule(true); }}
+        >
+          <i className="fas fa-calendar-plus me-2" aria-hidden="true" />
+          Schedule visit
+        </button>
       </div>
       <Nav
         variant="pills"
@@ -326,6 +342,11 @@ export default function VisitsList() {
           onClose={() => setActiveVisit(null)}
         />
       )}
+      <ScheduleVisitModal
+        show={showSchedule}
+        onClose={() => setShowSchedule(false)}
+        onScheduled={() => load({ quiet: true })}
+      />
       {ConfirmDialog}
     </>
   );
