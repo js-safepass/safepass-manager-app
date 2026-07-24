@@ -141,11 +141,6 @@
   }
 }
 
-// Profile menu toggle: icon-only — suppress Bootstrap's caret.
-.app-profile-toggle::after {
-  display: none;
-}
-
 // Scope-tier dot (fleet parity with the mapping app's ScopeDot).
 .app-scope-dot {
   display: inline-block;
