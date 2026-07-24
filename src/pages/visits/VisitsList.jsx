@@ -110,7 +110,9 @@ export default function VisitsList() {
 
   const visitorName = (v) => {
     const visitor = visitorsById[v.visitor_id];
-    return visitor ? `${visitor.first_name} ${visitor.last_name}` : v.visitor_id;
+    // visitor_name rides VisitOut itself — a human name beats the raw id
+    // whenever the expand misses (page boundary, tombstoned visitor).
+    return visitor ? `${visitor.first_name} ${visitor.last_name}` : (v.visitor_name || v.visitor_id);
   };
 
   return (
