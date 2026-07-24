@@ -1,8 +1,10 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Nav, Spinner, Table } from 'react-bootstrap';
+import { useSearchParams } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import PullToRefresh from '../../components/PullToRefresh.jsx';
+import VisitScheduleLabel from '../../components/VisitScheduleLabel.jsx';
 import { useConfirmModal } from '../../components/ConfirmModal.jsx';
 import VisitActionModal from './VisitActionModal.jsx';
 import { useApi } from '../../state/useApi.js';
@@ -10,10 +12,10 @@ import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { useScopedPolling } from '../../lib/useScopedPolling.js';
 import { getUserFacingError } from '../../lib/userErrors.js';
-import { formatDateTime, formatRelative, formatTime } from '../../lib/format/datetime.js';
+import { formatDateTime } from '../../lib/format/datetime.js';
 import { visitEndTime, visitStartTime } from '../../lib/visitTimes.js';
 import { hostContactName } from '../../lib/visitHost.js';
-import { groupUpcomingVisits, upcomingBucket } from '../../lib/upcomingVisits.js';
+import { groupUpcomingVisits } from '../../lib/upcomingVisits.js';
 import { badgeStatusMap, newlyEncodedReady } from '../../lib/badgePipeline.js';
 import { isCheckinGateError } from '../../lib/checkinGate.js';
 import { notifyError, notifySuccess, notifyWarning } from '../../lib/native/haptics.js';
@@ -115,6 +117,22 @@ export default function VisitsList() {
     intervalMs: 15_000,
   });
 
+  // ?open=<visitId> deep-link (Dashboard arrivals feed; notification links
+  // later ride the same seam): once rows land, open that visit's modal and
+  // strip the param. One-shot — if the visit isn't on the current page
+  // (checked in meanwhile, other scope), the param clears silently rather
+  // than re-arming on every poll.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openParamConsumedRef = useRef(false);
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || openParamConsumedRef.current || loading) return;
+    openParamConsumedRef.current = true;
+    const match = rows.find((v) => v.id === openId);
+    if (match) setActiveVisit(match);
+    setSearchParams({}, { replace: true });
+  }, [rows, loading, searchParams, setSearchParams]);
+
   const visitorName = (v) => {
     const visitor = visitorsById[v.visitor_id];
     // visitor_name rides VisitOut itself — a human name beats the raw id
@@ -189,26 +207,6 @@ export default function VisitsList() {
   const checkout = act('checked out', api.checkoutVisit);
   const cancel = act('cancelled', api.cancelVisit, notifyWarning);
 
-  // Upcoming's schedule cell: today's arrivals read as a clock time plus
-  // relative distance ("10:30 AM · in 45 min" / "· 20 min ago" when overdue);
-  // other days as a short date. Unscheduled pending records are rare (desk
-  // check-ins go straight to checking_in) but must not vanish.
-  const scheduledCell = (v) => {
-    if (!v.start_time) return <span className="text-muted">Unscheduled</span>;
-    if (upcomingBucket(v) === 'later') {
-      return formatDateTime(v.start_time, undefined, { length: 'short' });
-    }
-    const overdue = upcomingBucket(v) === 'overdue';
-    return (
-      <>
-        {formatTime(v.start_time)}
-        <span className={overdue ? 'text-danger' : 'text-muted'}>
-          {' '}· {formatRelative(v.start_time)}
-        </span>
-      </>
-    );
-  };
-
   const rowProps = (v) => ({
     role: 'button',
     style: { cursor: 'pointer' },
@@ -273,7 +271,7 @@ export default function VisitsList() {
                     {group.visits.map((v) => (
                       <tr key={v.id} {...rowProps(v)}>
                         <td className="fw-semibold">{visitorName(v)}</td>
-                        <td className="small text-nowrap">{scheduledCell(v)}</td>
+                        <td className="small text-nowrap"><VisitScheduleLabel visit={v} /></td>
                         <td className="small d-none d-sm-table-cell">
                           {hostContactName(v.host_contact) || <span className="text-muted">—</span>}
                         </td>
