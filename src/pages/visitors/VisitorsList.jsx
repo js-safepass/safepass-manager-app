@@ -47,6 +47,8 @@ export default function VisitorsList() {
       setRows((prev) => (append ? [...prev, ...(page?.data || [])] : page?.data || []));
       setCursor(page?.meta?.cursor || null);
       if (!append) {
+        // Comma status = IN-list; needs backend PR #256 (release #260,
+        // deployed 2026-07-24) — see lib/visitorPresence.js header.
         api.listVisits({ org_id: activeOrgId, status: 'checking_in,active,checking_out', limit: 200 })
           .then((res) => setPresence(presenceFromVisits(res?.data)))
           .catch(() => {});

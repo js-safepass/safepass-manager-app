@@ -297,6 +297,13 @@ export function createManagerApi({
       managerFetch({ method: 'POST', path: `/v1/visitors/${visitorId}/checkin`, body: payload, idempotencyKey }),
     listScheduledCheckins: (params) =>
       managerFetch({ method: 'GET', path: withQuery('/v1/checkin/scheduled', params) }),
+    // Advisory preview of the scheduled visit a walk-up check-in would
+    // auto-consume (backend PR #251, deployed with release #260, 2026-07-24):
+    // { matched, candidate_count, visit? }. Reuses the claim path's own
+    // matching internals server-side, but is deliberately racy — treat it as
+    // a hint, never a gate; the check-in submit stays authoritative.
+    getScheduledMatch: (visitorId, params) =>
+      managerFetch({ method: 'GET', path: withQuery(`/v1/visitors/${visitorId}/scheduled-match`, params) }),
 
     // --- Visits ---
     listVisits: (params) =>
@@ -436,7 +443,16 @@ export function createMockManagerApi() {
     { id: 'visit_001', visitor_id: 'visitor_003', visitor_name: mockVisitorName('visitor_003'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'completed', checkin_status: 'confirmed', badge_id: 'badge_0142', badge_raw_media_id: 'media_braw_1', badge_encoded_media_id: 'media_benc_1', badge_render_error: null, badge_encode_error: null, version: 4, check_in_requested_at: iso(3 * DAY), checked_in_at: iso(3 * DAY), checked_out_at: iso(3 * DAY - 4 * HOUR), station_id: 'stn_001', host_contact: { name: 'Dana Whitfield', email: 'dana.whitfield@example.com', notify_via: 'email' }, _pipelineDone: true },
     { id: 'visit_002', visitor_id: 'visitor_007', visitor_name: mockVisitorName('visitor_007'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_annex', status: 'completed', checkin_status: 'confirmed', badge_id: 'badge_0187', badge_raw_media_id: 'media_braw_2', badge_encoded_media_id: 'media_benc_2', badge_render_error: null, badge_encode_error: null, version: 4, check_in_requested_at: iso(1 * DAY), checked_in_at: iso(1 * DAY), checked_out_at: iso(1 * DAY - 2 * HOUR), station_id: 'stn_002', flags: { geofence_breach: true }, _pipelineDone: true },
     { id: 'visit_003', visitor_id: 'visitor_001', visitor_name: mockVisitorName('visitor_001'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'active', checkin_status: 'confirmed', badge_id: 'badge_0201', badge_raw_media_id: 'media_braw_3', badge_encoded_media_id: 'media_benc_3', badge_render_error: null, badge_encode_error: null, version: 3, check_in_requested_at: iso(2 * HOUR), checked_in_at: iso(2 * HOUR), station_id: 'stn_001', host_contact: { first_name: 'Ravi', last_name: 'Chandra', notify_via: 'both' }, _pipelineDone: true },
-    { id: 'visit_004', visitor_id: 'visitor_005', visitor_name: mockVisitorName('visitor_005'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, check_in_requested_at: iso(6 * HOUR), start_time: new Date(now + 3 * HOUR).toISOString(), end_time: new Date(now + 6 * HOUR).toISOString() },
+    { id: 'visit_004', visitor_id: 'visitor_004', visitor_name: mockVisitorName('visitor_004'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, check_in_requested_at: iso(6 * HOUR), start_time: new Date(now + 3 * HOUR).toISOString(), end_time: new Date(now + 6 * HOUR).toISOString(), host_contact: { name: 'Dana Whitfield', email: 'dana.whitfield@example.com', notify_via: 'email' } },
+    // Scheduled-visit fixtures for the Upcoming view (plan step 1): one
+    // arriving tomorrow (Later group), one whose start already passed
+    // (Overdue — expiry only sweeps ~02:00 next local day, so a missed
+    // morning arrival stays pending all day), and one the worker already
+    // expired. The overdue one carries the mock's background-check gate so
+    // the check-in prompt path stays drivable with no backend.
+    { id: 'visit_005', visitor_id: 'visitor_009', visitor_name: mockVisitorName('visitor_009'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, check_in_requested_at: iso(20 * HOUR), start_time: new Date(now + 26 * HOUR).toISOString(), end_time: new Date(now + 28 * HOUR).toISOString(), host_contact: { first_name: 'Ravi', last_name: 'Chandra', notify_via: 'both' } },
+    { id: 'visit_006', visitor_id: 'visitor_011', visitor_name: mockVisitorName('visitor_011'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_annex', status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, check_in_requested_at: iso(26 * HOUR), start_time: iso(2 * HOUR), host_contact: { name: 'Dana Whitfield', email: 'dana.whitfield@example.com', notify_via: 'email' }, _requires_bg_check: true },
+    { id: 'visit_007', visitor_id: 'visitor_013', visitor_name: mockVisitorName('visitor_013'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'expired', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 2, check_in_requested_at: iso(2 * DAY), start_time: iso(30 * HOUR), end_time: iso(28 * HOUR) },
   ];
 
   // Stateful mock user settings (theme/timezone roaming — WS-4).
@@ -451,12 +467,15 @@ export function createMockManagerApi() {
     updated_at: iso(30 * DAY),
   };
 
+  // visit_id / visitor_id are top-level notification fields on the wire
+  // (notifications.Notification, verified 2026-07-24) — the inbox deep-links
+  // from them. device_offline carries neither: it must render un-linked.
   const notifications = [
-    { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null },
-    { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null },
-    { id: 'ntf_003', type: 'checkin_failed', severity: 'warning', title: 'Check-in failed at Main Lobby kiosk — no badges available', created_at: iso(3 * HOUR), read_at: null },
-    { id: 'ntf_004', type: 'visit_completed', severity: 'info', title: 'Wei Chen checked out', created_at: iso(5 * HOUR), read_at: iso(4 * HOUR) },
-    { id: 'ntf_005', type: 'review_required', severity: 'warning', title: 'New visitor requires review: Omar Hassan', created_at: iso(8 * HOUR), read_at: iso(7 * HOUR) },
+    { id: 'ntf_001', type: 'visitor_checked_in', severity: 'info', title: 'Jane Doe checked in at Main Lobby', created_at: iso(0.5 * HOUR), read_at: null, visit_id: 'visit_003', visitor_id: 'visitor_001' },
+    { id: 'ntf_002', type: 'geofence_breach', severity: 'warning', title: 'Geofence alert: visitor left permitted zone (Floor 2)', created_at: iso(1.2 * HOUR), read_at: null, visit_id: 'visit_002', visitor_id: 'visitor_007' },
+    { id: 'ntf_003', type: 'checkin_failed', severity: 'warning', title: 'Check-in failed at Main Lobby kiosk — no badges available', created_at: iso(3 * HOUR), read_at: null, visitor_id: 'visitor_013' },
+    { id: 'ntf_004', type: 'visit_completed', severity: 'info', title: 'Wei Chen checked out', created_at: iso(5 * HOUR), read_at: iso(4 * HOUR), visit_id: 'visit_001', visitor_id: 'visitor_003' },
+    { id: 'ntf_005', type: 'review_required', severity: 'warning', title: 'New visitor requires review: Omar Hassan', created_at: iso(8 * HOUR), read_at: iso(7 * HOUR), visitor_id: 'visitor_016' },
     { id: 'ntf_006', type: 'device_offline', severity: 'danger', title: 'Badge encoder BE-02 went offline', created_at: iso(26 * HOUR), read_at: iso(20 * HOUR) },
   ];
 
@@ -500,10 +519,37 @@ export function createMockManagerApi() {
     const copy = { ...v };
     delete copy._checkinStartedAt;
     delete copy._pipelineDone;
+    delete copy._requires_bg_check;
     return copy;
   };
 
   const csv = (value) => String(value).toLowerCase().split(',').map((s) => s.trim());
+
+  // The backend's check-in auto-match rules, simplified (match.go): the
+  // visitor's pending visits (at the location when given) whose scheduled
+  // window overlaps the current local day, closest to now first with
+  // in-progress windows winning outright. Shared by getScheduledMatch (the
+  // advisory preview) and checkin (which actually consumes the match) so the
+  // mock can never preview one visit and claim another.
+  const matchScheduledCandidates = (visitorId, locationId) => {
+    const nowMs = Date.now();
+    const dayStart = new Date(new Date(nowMs).setHours(0, 0, 0, 0)).getTime();
+    const dayEnd = dayStart + 24 * HOUR;
+    const distance = (v) => {
+      const s = new Date(v.start_time).getTime();
+      const e = v.end_time ? new Date(v.end_time).getTime() : s;
+      if (nowMs >= s && nowMs <= e) return 0;
+      return nowMs < s ? s - nowMs : nowMs - e;
+    };
+    return visits
+      .map(promote)
+      .filter((v) => v.status === 'pending' && v.visitor_id === visitorId
+        && (!locationId || v.location_id === locationId)
+        && v.start_time
+        && new Date(v.start_time).getTime() < dayEnd
+        && new Date(v.end_time || v.start_time).getTime() >= dayStart)
+      .sort((a, b) => distance(a) - distance(b));
+  };
 
   return {
     request: async () => ({ data: {} }),
@@ -603,6 +649,19 @@ export function createMockManagerApi() {
       if (visits.some((v) => v.visitor_id === visitorId && ['checking_in', 'active', 'checking_out'].includes(promote(v).status))) {
         throw conflict('Visitor is already checked in.', 'VISITOR_ALREADY_CHECKED_IN');
       }
+      // Consume the closest matchable scheduled visit (backend claim path) —
+      // the ad-hoc create below is the fallback only.
+      const matched = matchScheduledCandidates(visitorId, 'loc_reno')[0];
+      if (matched) {
+        Object.assign(matched, {
+          status: 'checking_in',
+          checkin_status: 'pending',
+          building_id: 'bld_hq', // claim overwrites placement with the check-in's
+          check_in_requested_at: new Date().toISOString(),
+          _checkinStartedAt: Date.now(),
+        });
+        return { data: stripInternal(matched) };
+      }
       const visit = {
         id: `visit_${visitSeq++}`,
         visitor_id: visitorId,
@@ -625,7 +684,30 @@ export function createMockManagerApi() {
       visits.unshift(visit);
       return { data: stripInternal(visit) };
     },
-    listScheduledCheckins: async () => ({ data: [], meta: { limit: 50 } }),
+    // Advisory auto-match preview (backend PR #251) — same shape as the wire:
+    // { matched, candidate_count, visit? }.
+    getScheduledMatch: async (visitorId, params = {}) => {
+      const candidates = matchScheduledCandidates(visitorId, params.location_id);
+      return {
+        data: {
+          matched: candidates.length > 0,
+          candidate_count: candidates.length,
+          ...(candidates.length ? { visit: stripInternal(candidates[0]) } : {}),
+        },
+      };
+    },
+    // Mirrors the backend (wire truth 2026-07-24): a PER-VISITOR pending
+    // list — org/location/visitor required, NO date window despite the
+    // "scheduled" naming — not a location-wide arrivals feed (that is
+    // listVisits with status=pending).
+    listScheduledCheckins: async (params = {}) => {
+      const rows = visits
+        .map(promote)
+        .filter((v) => v.status === 'pending' && v.visitor_id === params.visitor_id)
+        .sort((a, b) => (a.check_in_requested_at < b.check_in_requested_at ? 1 : -1))
+        .map(stripInternal);
+      return paginate(rows, params);
+    },
 
     listVisits: async (params = {}) => {
       let rows = visits.map(promote);
@@ -665,15 +747,34 @@ export function createMockManagerApi() {
         version: 1,
         check_in_requested_at: new Date().toISOString(),
         ...payload,
+        // VisitOut carries the linked visitor's name (the real backend
+        // resolves it; visitor_name in the REQUEST is dropped — D1).
+        visitor_name: payload.visitor_id ? mockVisitorName(payload.visitor_id) : '',
       };
       visits.unshift(visit);
       return { data: visit };
     },
-    confirmVisit: async (visitId) => {
+    // Mirrors the real confirm (wire truth 2026-07-24): per-visit check-in.
+    // Gates first (bg-check clearable via {check_cleared:true} — 428, same
+    // code the backend sends), then pending → checking_in with the SAME
+    // simulated async pipeline as walk-up check-in (promote() advances to
+    // active ~4s, badge encoded ~8s) — the earlier mock jumped straight to
+    // active, which hid the pipeline states the UI polls for.
+    confirmVisit: async (visitId, payload = {}) => {
       const found = visits.find((v) => v.id === visitId);
       if (!found) throw notFound('NOT_FOUND');
-      if (found.status !== 'pending') throw conflict('Only pending visits can be confirmed.', 'INVALID_STATUS_TRANSITION');
-      Object.assign(found, { status: 'active', checkin_status: 'confirmed', checked_in_at: new Date().toISOString() });
+      if (found._requires_bg_check && !payload.check_cleared) {
+        throw new ManagerApiError('Background check required before check-in.', { code: 'BACKGROUND_CHECK_REQUIRED', status: 428 });
+      }
+      if (!['pending', 'checking_in'].includes(found.status)) {
+        throw conflict('Only pending visits can be confirmed.', 'INVALID_STATUS_TRANSITION');
+      }
+      Object.assign(found, {
+        status: 'checking_in',
+        checkin_status: 'queued',
+        check_in_requested_at: new Date().toISOString(),
+        _checkinStartedAt: Date.now(),
+      });
       return { data: stripInternal(found) };
     },
     checkoutVisit: async (visitId) => {

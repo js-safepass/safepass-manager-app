@@ -72,7 +72,7 @@ export function visitStateForStatus(status) {
   const value = (status || '').toLowerCase();
   if (['pending', 'checking_in'].includes(value)) return 'scheduled';
   if (['active', 'checking_out'].includes(value)) return 'active';
-  if (['completed', 'failed', 'cancelled'].includes(value)) return 'completed';
+  if (['completed', 'failed', 'cancelled', 'expired'].includes(value)) return 'completed';
   return value || 'scheduled';
 }
 
@@ -82,16 +82,18 @@ export function visitStateForStatus(status) {
 export function isCheckoutEligible(visit) {
   const status = (visit?.status || '').toLowerCase();
   const checkinStatus = (visit?.checkin_status || '').toLowerCase();
-  if (['completed', 'failed', 'cancelled'].includes(status)) return false;
+  if (['completed', 'failed', 'cancelled', 'expired'].includes(status)) return false;
   return status === 'active' || status === 'checking_out' || checkinStatus === 'confirmed';
 }
 
 /**
  * Whether a visit is in a terminal state (no further actions).
+ * `expired` is the backend worker's terminal no-show close for pending
+ * scheduled visits (wire truth 2026-07-24) — render/treat like cancelled.
  */
 export function isTerminalVisit(visit) {
   const status = (visit?.status || '').toLowerCase();
-  return ['completed', 'failed', 'cancelled'].includes(status);
+  return ['completed', 'failed', 'cancelled', 'expired'].includes(status);
 }
 
 /**
