@@ -5,6 +5,11 @@
 // status. The visitors screen fetches on-site visits
 // (status=checking_in,active,checking_out) and joins client-side.
 //
+// That comma status value is an IN-list: backend support ships with
+// sentinel-datamanager PR #256 (release PR #260, deploying 2026-07-24) —
+// before that deploy /v1/visits matched `status` as a single literal and the
+// join silently returned nothing (the mock's IN-list support masked it).
+//
 // Lifecycle `status` (active/pending_review/archived) is a RECORD state, not
 // presence — the screens demote it to a secondary badge.
 //

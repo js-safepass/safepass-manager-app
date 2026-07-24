@@ -175,3 +175,18 @@
   top: 0;
   z-index: 1020;
 }
+
+// The ported sentinel-ui shim (custom/page-content/_common-css.scss:232)
+// blockifies EVERY .table under 768px (display:block + overflow-x:auto — a
+// Bootstrap-3-era responsive-table trick). A blockified table's inner
+// anonymous table shrinks to max-content instead of honoring width:100%,
+// leaving a dead unpaintable gutter down the right edge of every phone
+// table (exposed by the Upcoming view's gray group-header rows, 2026-07-24).
+// This app already wraps tables in .table-responsive, so restore real table
+// layout; loaded last, this wins over the shim at equal specificity.
+@media (max-width: 767px) {
+  .table {
+    display: table;
+    overflow-x: visible;
+  }
+}

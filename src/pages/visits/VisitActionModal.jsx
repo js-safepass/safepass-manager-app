@@ -82,10 +82,14 @@ export default function VisitActionModal({
         </div>
       </Modal.Body>
       <Modal.Footer className="flex-wrap">
+        {/* Labeled "Check in", not "Confirm": POST /visits/{id}/confirm IS the
+            per-visit check-in (wire truth 2026-07-24 — 202 → checking_in →
+            async badge pipeline), and that's what a front desk means to do
+            with a pending arrival. */}
         {isConfirmEligible(visit) && (
           <Button variant="primary" disabled={busy} onClick={press(onConfirm)}>
-            <i className="fas fa-check me-2" aria-hidden="true" />
-            Confirm
+            <i className="fas fa-right-to-bracket me-2" aria-hidden="true" />
+            Check in
           </Button>
         )}
         {isCheckoutEligible(visit) && (
