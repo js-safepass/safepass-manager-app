@@ -4,6 +4,7 @@ import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
+import { formatPhoneInput } from '../../lib/phoneFormat.js';
 import { notifyError, notifySuccess, tapLight } from '../../lib/native/haptics.js';
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', company: '', type: 'guest', notes: '' };
@@ -93,7 +94,13 @@ export default function VisitorFormModal({ show, visitor, onClose, onSaved }) {
             <Col sm={6}>
               <Form.Group controlId="visitor-phone">
                 <Form.Label>Phone</Form.Label>
-                <Form.Control value={fields.phone} onChange={set('phone')} />
+                {/* As-you-type US formatting (legacy-app ergonomic);
+                    '+'-prefixed international input passes through raw. */}
+                <Form.Control
+                  type="tel"
+                  value={fields.phone}
+                  onChange={(e) => setFields((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
+                />
               </Form.Group>
             </Col>
             <Col sm={6}>

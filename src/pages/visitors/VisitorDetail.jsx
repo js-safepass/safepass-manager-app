@@ -3,8 +3,11 @@ import { Alert, Button, Col, Row, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
+import VisitScheduleLabel from '../../components/VisitScheduleLabel.jsx';
+import { useConfirmModal } from '../../components/ConfirmModal.jsx';
 import VisitorFormModal from './VisitorFormModal.jsx';
 import VisitActionModal from '../visits/VisitActionModal.jsx';
+import ScheduleVisitModal from '../visits/ScheduleVisitModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
@@ -12,6 +15,7 @@ import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
 import { visitEndTime, visitStartTime } from '../../lib/visitTimes.js';
 import { isTerminalVisit } from '../../lib/visitHelpers.js';
+import { sortByScheduledStart } from '../../lib/upcomingVisits.js';
 import { isCheckinGateError } from '../../lib/checkinGate.js';
 import { notifyError, notifySuccess, notifyWarning, tapMedium } from '../../lib/native/haptics.js';
 
@@ -35,11 +39,14 @@ export default function VisitorDetail() {
   const { activeOrgId, activeScope } = useSession();
   const flash = useFlash();
   const navigate = useNavigate();
+  const { confirm: askConfirm, ConfirmDialog } = useConfirmModal();
   const [visitor, setVisitor] = useState(null);
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [rescheduleVisit, setRescheduleVisit] = useState(null);
   const [checkingIn, setCheckingIn] = useState(false);
   // History row tap opens the same action modal as the visits list — one
   // inspect surface fleet-wide (owner greenlight 2026-07-24).
@@ -67,20 +74,28 @@ export default function VisitorDetail() {
     load();
   }, [load]);
 
-  const hasOpenVisit = visits.some((v) => !isTerminalVisit(v));
+  // "Open" = physically in the check-in pipeline or on site. Pending
+  // scheduled visits deliberately DON'T count (fixed with plan step 4): a
+  // visitor with a booking is precisely who the walk-up Check in serves —
+  // the backend auto-consumes their closest matchable scheduled visit.
+  const hasOpenVisit = visits.some((v) => ['checking_in', 'active', 'checking_out'].includes(v.status));
+  const pendingVisits = sortByScheduledStart(visits.filter((v) => v.status === 'pending'));
+  const historyVisits = visits.filter((v) => v.status !== 'pending');
 
   // Same act() shape as VisitsList: success closes the modal and reloads,
   // failure keeps it open to retry; outcome haptics mirror the list's.
-  const act = (label, fn, onDone = notifySuccess) => async (visit) => {
+  // Check-in gate failures (428 catalogue) read as warnings, not errors —
+  // the modal's Check in button routes through confirmVisit, which gates.
+  const act = (message, fn, onDone = notifySuccess) => async (visit) => {
     setActionBusy(true);
     try {
       await fn(visit.id);
       onDone();
-      flash.success(`Visit ${label}.`);
+      flash.success(message);
       setActiveVisit(null);
       await load();
     } catch (err) {
-      notifyError();
+      (isCheckinGateError(err) ? notifyWarning : notifyError)();
       flash.error(getUserFacingError(err));
     } finally {
       setActionBusy(false);
@@ -90,6 +105,27 @@ export default function VisitorDetail() {
   const checkIn = async () => {
     setCheckingIn(true);
     try {
+      // Advisory match preview (backend PR #251): a walk-up check-in silently
+      // consumes the visitor's closest matchable scheduled visit — surface
+      // that BEFORE it happens so the operator isn't surprised. Advisory
+      // only: any preview failure (endpoint not deployed, races, missing
+      // scope) falls through to a plain check-in; the submit is authoritative.
+      try {
+        const preview = await api.getScheduledMatch(visitorId, {
+          org_id: activeOrgId,
+          location_id: activeScope?.locationId || undefined,
+        });
+        const match = preview?.data;
+        if (match?.matched && match.visit?.start_time) {
+          const proceed = await askConfirm({
+            title: 'Scheduled visit found',
+            body: `Checking in will use their scheduled visit (${formatDateTime(match.visit.start_time)}).`,
+            confirmLabel: 'Check in',
+            variant: 'primary',
+          });
+          if (!proceed) return;
+        }
+      } catch { /* advisory only — never blocks check-in */ }
       // org_id per the check-in contract; location_id + building_id from the
       // picked workspace scope — CheckInRequest requires BOTH (backend rejects
       // with LOCATION_REQUIRED / BUILDING_REQUIRED, verified against
@@ -140,6 +176,10 @@ export default function VisitorDetail() {
           <i className="fas fa-pen me-2" aria-hidden="true" />
           Edit
         </Button>
+        <Button variant="outline-primary" onClick={() => setShowSchedule(true)}>
+          <i className="fas fa-calendar-plus me-2" aria-hidden="true" />
+          Schedule
+        </Button>
         <Button
           variant="primary"
           onClick={checkIn}
@@ -173,8 +213,31 @@ export default function VisitorDetail() {
           </SectionCard>
         </Col>
         <Col lg={7}>
-          <SectionCard title="Visit history" bodyClassName={visits.length ? 'p-0' : undefined}>
-            {visits.length === 0 ? (
+          {/* Upcoming (pending) visits sit above history — the front desk's
+              question is "are they expected?", not "when were they last
+              here?". Rows open the same action modal (Check in / Cancel). */}
+          {pendingVisits.length > 0 && (
+            <SectionCard title="Upcoming visits" bodyClassName="p-0" className="mb-3">
+              <Table responsive hover className="mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th>Scheduled</th>
+                    <th className="d-none d-md-table-cell">Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingVisits.map((v) => (
+                    <tr key={v.id} role="button" onClick={() => setActiveVisit(v)}>
+                      <td className="small text-nowrap"><VisitScheduleLabel visit={v} /></td>
+                      <td className="small d-none d-md-table-cell">{v.location_name || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </SectionCard>
+          )}
+          <SectionCard title="Visit history" bodyClassName={historyVisits.length ? 'p-0' : undefined}>
+            {historyVisits.length === 0 ? (
               <div className="text-muted small py-3 text-center">No visits recorded.</div>
             ) : (
               <Table responsive hover className="mb-0 align-middle">
@@ -192,7 +255,7 @@ export default function VisitorDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visits.map((v) => (
+                  {historyVisits.map((v) => (
                     <tr key={v.id} role="button" onClick={() => setActiveVisit(v)}>
                       <td className="small text-nowrap">
                         {formatDateTime(visitStartTime(v), undefined, { length: 'short' }) || '—'}
@@ -233,14 +296,24 @@ export default function VisitorDetail() {
         onSaved={() => load()}
       />
 
+      <ScheduleVisitModal
+        show={showSchedule || Boolean(rescheduleVisit)}
+        presetVisitor={visitor}
+        replaceVisit={rescheduleVisit}
+        onClose={() => { setShowSchedule(false); setRescheduleVisit(null); }}
+        onScheduled={() => load()}
+      />
+      {ConfirmDialog}
+
       {activeVisit && (
         <VisitActionModal
           visit={activeVisit}
           visitorName={`${visitor.first_name} ${visitor.last_name}`}
           busy={actionBusy}
-          onConfirm={act('confirmed', api.confirmVisit)}
-          onCheckout={act('checked out', api.checkoutVisit)}
-          onCancel={act('cancelled', api.cancelVisit, notifyWarning)}
+          onConfirm={act('Check-in started.', api.confirmVisit)}
+          onCheckout={act('Visit checked out.', api.checkoutVisit)}
+          onCancel={act('Visit cancelled.', api.cancelVisit, notifyWarning)}
+          onReschedule={(v) => { setActiveVisit(null); setRescheduleVisit(v); }}
           onClose={() => setActiveVisit(null)}
         />
       )}

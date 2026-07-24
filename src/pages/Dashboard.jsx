@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Col, Row } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SectionCard from '../components/SectionCard.jsx';
+import VisitScheduleLabel from '../components/VisitScheduleLabel.jsx';
 import { useApi } from '../state/useApi.js';
 import { useSession } from '../state/useSession.js';
 import { useNotifications } from '../state/useNotifications.js';
 import { useScopedPolling } from '../lib/useScopedPolling.js';
 import { formatDateTime } from '../lib/format/datetime.js';
+import { groupUpcomingVisits } from '../lib/upcomingVisits.js';
+import { tapLight } from '../lib/native/haptics.js';
 
 const TILES = [
   { key: 'on_site_now', label: 'On site now', icon: 'fa-location-dot' },
@@ -21,9 +24,14 @@ const TILES = [
 // re-check when the backend freezes the metrics group.
 export default function Dashboard() {
   const api = useApi();
+  const navigate = useNavigate();
   const { activeOrgId, activeScope } = useSession();
   const { notifications, unreadCount } = useNotifications();
   const [metrics, setMetrics] = useState(null);
+  // Today's pending arrivals (Overdue + Today buckets), soonest first; null =
+  // first load in flight. Names ride the expand includes.
+  const [arrivals, setArrivals] = useState(null);
+  const [arrivalVisitors, setArrivalVisitors] = useState({});
 
   const load = useCallback(async () => {
     const res = await api.getMetrics({
@@ -41,7 +49,41 @@ export default function Dashboard() {
   }, [load]);
   useScopedPolling({ channel: 'dashboard-metrics', poll: load, intervalMs: 20_000 });
 
+  // Arriving-today feed (scheduled-visits plan step 2). Filtering to "today"
+  // and counting are client-side by wire-truth necessity: /v1/visits has no
+  // time-window filters, and the metrics presets are still provisional
+  // (decision #10) — the fetch itself is the count. Same location/building
+  // scoping rule as VisitsList (division isn't a supported filter). 60s
+  // cadence: arrivals move slowly; the Visits tab's 15s poll is the live
+  // surface.
+  const loadArrivals = useCallback(async () => {
+    const page = await api.listVisits({
+      org_id: activeOrgId,
+      location_id: activeScope?.locationId || undefined,
+      building_id: activeScope?.buildingId || undefined,
+      limit: 50,
+      status: 'pending',
+      expand: 'visitors',
+    });
+    const todays = groupUpcomingVisits(page?.data || [])
+      .filter((g) => g.key !== 'later')
+      .flatMap((g) => g.visits);
+    setArrivals(todays);
+    setArrivalVisitors(page?.includes?.visitors || {});
+  }, [api, activeOrgId, activeScope]);
+
+  useEffect(() => {
+    loadArrivals().catch(() => {});
+  }, [loadArrivals]);
+  useScopedPolling({ channel: 'dashboard-arrivals', poll: loadArrivals, intervalMs: 60_000 });
+
+  const arrivalName = (v) => {
+    const visitor = arrivalVisitors[v.visitor_id];
+    return visitor ? `${visitor.first_name} ${visitor.last_name}` : (v.visitor_name || v.visitor_id);
+  };
+
   const recent = notifications.slice(0, 6);
+  const nextArrivals = (arrivals || []).slice(0, 5);
 
   return (
     <>
@@ -67,6 +109,52 @@ export default function Dashboard() {
 
       <Row className="g-3">
         <Col lg={7}>
+          {/* Arrivals lead the column: the next person through the door beats
+              the notification backlog for a front desk (plan step 2). Row tap
+              deep-links into the Visits tab with that visit's action modal
+              open (?open= seam — VisitsList consumes it). */}
+          <SectionCard
+            title="Arriving today"
+            subtitle="Scheduled visits still expected at this workspace"
+            action={(
+              <Link to="/visits" className="small">
+                View all{arrivals && arrivals.length > 0 ? ` (${arrivals.length})` : ''}
+              </Link>
+            )}
+            className="mb-3"
+          >
+            {arrivals === null ? (
+              <div className="text-muted small py-3 text-center">Loading…</div>
+            ) : arrivals.length === 0 ? (
+              <div className="text-muted small py-3 text-center">No scheduled arrivals left today.</div>
+            ) : (
+              <ul className="list-unstyled mb-0 d-flex flex-column gap-2">
+                {nextArrivals.map((v) => (
+                  <li
+                    key={v.id}
+                    role="button"
+                    className="d-flex align-items-center gap-2"
+                    onClick={() => {
+                      tapLight();
+                      navigate(`/visits?open=${v.id}`);
+                    }}
+                  >
+                    <i className="fas fa-user-clock text-primary" aria-hidden="true" />
+                    <span className="flex-grow-1 min-w-0">
+                      <span className="d-block fw-semibold text-truncate">{arrivalName(v)}</span>
+                      <span className="d-block small"><VisitScheduleLabel visit={v} /></span>
+                    </span>
+                    <i className="fas fa-chevron-right text-muted small" aria-hidden="true" />
+                  </li>
+                ))}
+                {arrivals.length > nextArrivals.length && (
+                  <li className="text-muted small">
+                    + {arrivals.length - nextArrivals.length} more — <Link to="/visits">see the Visits tab</Link>
+                  </li>
+                )}
+              </ul>
+            )}
+          </SectionCard>
           <SectionCard
             title="Latest notifications"
             subtitle="Live feed — arrivals, alerts, and check-in failures"
@@ -99,7 +187,11 @@ export default function Dashboard() {
         <Col lg={5}>
           <SectionCard title="Quick actions">
             <div className="d-grid gap-2">
-              <Link to="/visitors" className="btn btn-primary">
+              <Link to="/visits?schedule=1" className="btn btn-primary">
+                <i className="fas fa-calendar-plus me-2" aria-hidden="true" />
+                Schedule a visit
+              </Link>
+              <Link to="/visitors" className="btn btn-outline-primary">
                 <i className="fas fa-users me-2" aria-hidden="true" />
                 Visitor directory
               </Link>

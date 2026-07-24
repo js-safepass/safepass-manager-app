@@ -25,7 +25,7 @@ function InfoRow({ label, children }) {
 // action handlers (and their outcome haptics) — buttons here only add the
 // press tick.
 export default function VisitActionModal({
-  visit, visitorName, busy, onConfirm, onCheckout, onCancel, onClose,
+  visit, visitorName, busy, onConfirm, onCheckout, onCancel, onReschedule, onClose,
 }) {
   if (!visit) return null;
 
@@ -82,16 +82,29 @@ export default function VisitActionModal({
         </div>
       </Modal.Body>
       <Modal.Footer className="flex-wrap">
+        {/* Labeled "Check in", not "Confirm": POST /visits/{id}/confirm IS the
+            per-visit check-in (wire truth 2026-07-24 — 202 → checking_in →
+            async badge pipeline), and that's what a front desk means to do
+            with a pending arrival. */}
         {isConfirmEligible(visit) && (
           <Button variant="primary" disabled={busy} onClick={press(onConfirm)}>
-            <i className="fas fa-check me-2" aria-hidden="true" />
-            Confirm
+            <i className="fas fa-right-to-bracket me-2" aria-hidden="true" />
+            Check in
           </Button>
         )}
         {isCheckoutEligible(visit) && (
           <Button variant="primary" disabled={busy} onClick={press(onCheckout)}>
             <i className="fas fa-arrow-right-from-bracket me-2" aria-hidden="true" />
             Check out
+          </Button>
+        )}
+        {/* Reschedule = create-then-cancel (no visit PATCH exists, backend
+            decision 2026-07-12) — the caller opens the schedule form with
+            this visit as replaceVisit. */}
+        {visit.status === 'pending' && onReschedule && (
+          <Button variant="outline-primary" disabled={busy} onClick={press(onReschedule)}>
+            <i className="fas fa-calendar-pen me-2" aria-hidden="true" />
+            Reschedule
           </Button>
         )}
         {visit.status === 'pending' && (
