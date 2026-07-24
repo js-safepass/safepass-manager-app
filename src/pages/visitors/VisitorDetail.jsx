@@ -71,16 +71,18 @@ export default function VisitorDetail() {
 
   // Same act() shape as VisitsList: success closes the modal and reloads,
   // failure keeps it open to retry; outcome haptics mirror the list's.
-  const act = (label, fn, onDone = notifySuccess) => async (visit) => {
+  // Check-in gate failures (428 catalogue) read as warnings, not errors —
+  // the modal's Check in button routes through confirmVisit, which gates.
+  const act = (message, fn, onDone = notifySuccess) => async (visit) => {
     setActionBusy(true);
     try {
       await fn(visit.id);
       onDone();
-      flash.success(`Visit ${label}.`);
+      flash.success(message);
       setActiveVisit(null);
       await load();
     } catch (err) {
-      notifyError();
+      (isCheckinGateError(err) ? notifyWarning : notifyError)();
       flash.error(getUserFacingError(err));
     } finally {
       setActionBusy(false);
@@ -238,9 +240,9 @@ export default function VisitorDetail() {
           visit={activeVisit}
           visitorName={`${visitor.first_name} ${visitor.last_name}`}
           busy={actionBusy}
-          onConfirm={act('confirmed', api.confirmVisit)}
-          onCheckout={act('checked out', api.checkoutVisit)}
-          onCancel={act('cancelled', api.cancelVisit, notifyWarning)}
+          onConfirm={act('Check-in started.', api.confirmVisit)}
+          onCheckout={act('Visit checked out.', api.checkoutVisit)}
+          onCancel={act('Visit cancelled.', api.cancelVisit, notifyWarning)}
           onClose={() => setActiveVisit(null)}
         />
       )}
