@@ -15,9 +15,9 @@
 // by the shipped web UI). Manager lists are keyset-paginated, so each level
 // is drained through listAllPages before the pure core sees a flat array.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, ListGroup, Spinner } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import SectionCard from '../components/SectionCard.jsx';
 import { useApi } from '../state/useApi.js';
 import { useSession } from '../state/useSession.js';
@@ -55,6 +55,20 @@ export default function ScopePicker() {
   const [focusKey, setFocusKey] = useState(null); // level the user jumped back to via breadcrumb
   const [attempt, setAttempt] = useState(0); // bump to retry the fetch
 
+  // Deep-link from the Profile workspace card (?edit=org|division|location|
+  // building): open the drill AT that tier with everything above it kept —
+  // the mapping ProfilePanel's per-tier Edit semantics. Consumed ONCE via
+  // refs (captured at mount) so org changes and retries fall back to the
+  // normal from-scratch drill, and so the fetch effect needn't depend on
+  // activeScope (which pick() rewrites right before navigating away).
+  const [searchParams] = useSearchParams();
+  const editRequestRef = useRef(
+    ['org', 'division', 'location', 'building'].includes(searchParams.get('edit'))
+      ? searchParams.get('edit')
+      : null,
+  );
+  const scopeAtMountRef = useRef(activeScope);
+
   const retry = () => { setPhase('loading'); setAttempt((n) => n + 1); };
 
   // whoami carries org ids but only the active org's name (scope_label); fall
@@ -82,10 +96,28 @@ export default function ScopePicker() {
           drain(api.listBuildings),
         ]);
         if (cancelled) return;
-        setSelection({});
-        setFocusKey(null);
+        const edit = editRequestRef.current;
+        editRequestRef.current = null;
+        if (edit && edit !== 'org') {
+          // Seed the drill with the CURRENT scope, then jump to the edited
+          // tier exactly like a breadcrumb click (levels above kept, edited
+          // tier + below cleared, its picker forced open). A stale seeded id
+          // simply leaves that tier unresolved — the drill prompts for it.
+          const lvls = buildLevels({ divisions, locations, buildings });
+          const current = scopeAtMountRef.current;
+          const seeded = {
+            division: current?.divisionId ?? undefined,
+            location: current?.locationId ?? undefined,
+            building: current?.buildingId ?? undefined,
+          };
+          setSelection(selectionUpTo(lvls, seeded, edit));
+          setFocusKey(edit);
+        } else {
+          setSelection({});
+          setFocusKey(null);
+        }
         setData({ divisions, locations, buildings });
-        setPhase('scope');
+        setPhase(edit === 'org' ? 'org' : 'scope');
       } catch (error) {
         if (cancelled) return;
         // Always log the real error — the specific code (e.g.

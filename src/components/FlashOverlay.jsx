@@ -3,13 +3,11 @@
 // Fixed-position toast stack for flash notifications.
 // Consumed automatically by FlashProvider — mount once in the app layout.
 //
-// Geometry follows the FLEET toast contract (scope-spec "additional items",
-// 2026-07-23; the mapping app's sp-toast is the reference): TOP-CENTER,
-// safe-area aware, width capped to min(92vw, 480px). The previous top-right
-// `width:100%` + `maxWidth:28rem` overflowed the LEFT edge on any viewport
-// narrower than ~29rem, and the fixed `top:1rem` sat under the phone's
-// status bar — both owner-reported defects. Dismiss timings already match
-// the mapping app (6/8/10/12s by severity).
+// Geometry follows the FLEET toast contract (owner 2026-07-23, round 2):
+// TOP, safe-area aware, FULL WIDTH minus 1rem margins — anchored to both
+// edges so phones get the whole row (max-content sizing read as a cramped
+// pill); margin:auto + the 480px cap keeps desktop from a wall-to-wall
+// banner. Dismiss timings match the mapping app (6/8/10/12s by severity).
 
 import { Alert } from 'react-bootstrap';
 import { useFlash } from '../lib/flashProvider';
@@ -17,11 +15,11 @@ import { useFlash } from '../lib/flashProvider';
 const OVERLAY_STYLE = {
   position: 'fixed',
   top: 'calc(1rem + var(--app-inset-top, 0px))',
-  left: '50%',
-  transform: 'translateX(-50%)',
+  left: '1rem',
+  right: '1rem',
+  margin: '0 auto',
   zIndex: 1080, // above Bootstrap modals (1050) and navbars
-  width: 'max-content',
-  maxWidth: 'min(92vw, 480px)',
+  maxWidth: '480px',
   pointerEvents: 'none',
 };
 
@@ -43,7 +41,11 @@ export default function FlashOverlay() {
           variant={item.variant}
           dismissible
           onClose={() => dismiss(item.id)}
-          className="flash-overlay-alert mb-2 py-2 px-3 small d-flex align-items-center"
+          // ps-3/pe-5, NOT px-3: Bootstrap absolutely positions the dismiss X
+          // and reserves 3rem right padding on .alert-dismissible — px-3
+          // overrode that to 1rem, running text under the X. pe-5 restores
+          // the reserve so long messages wrap before reaching the button.
+          className="flash-overlay-alert mb-2 py-2 ps-3 pe-5 small d-flex align-items-center"
           style={ITEM_STYLE}
         >
           {item.message}
