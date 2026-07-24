@@ -4,14 +4,16 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../../components/SectionCard.jsx';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import VisitorFormModal from './VisitorFormModal.jsx';
+import VisitActionModal from '../visits/VisitActionModal.jsx';
 import { useApi } from '../../state/useApi.js';
 import { useSession } from '../../state/useSession.js';
 import { useFlash } from '../../lib/flashProvider.jsx';
 import { getUserFacingError } from '../../lib/userErrors.js';
 import { formatDateTime } from '../../lib/format/datetime.js';
+import { visitEndTime, visitStartTime } from '../../lib/visitTimes.js';
 import { isTerminalVisit } from '../../lib/visitHelpers.js';
 import { isCheckinGateError } from '../../lib/checkinGate.js';
-import { notifyError, notifyWarning, tapMedium } from '../../lib/native/haptics.js';
+import { notifyError, notifySuccess, notifyWarning, tapMedium } from '../../lib/native/haptics.js';
 
 function FieldRow({ label, children }) {
   return (
@@ -39,6 +41,10 @@ export default function VisitorDetail() {
   const [error, setError] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  // History row tap opens the same action modal as the visits list — one
+  // inspect surface fleet-wide (owner greenlight 2026-07-24).
+  const [activeVisit, setActiveVisit] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +68,24 @@ export default function VisitorDetail() {
   }, [load]);
 
   const hasOpenVisit = visits.some((v) => !isTerminalVisit(v));
+
+  // Same act() shape as VisitsList: success closes the modal and reloads,
+  // failure keeps it open to retry; outcome haptics mirror the list's.
+  const act = (label, fn, onDone = notifySuccess) => async (visit) => {
+    setActionBusy(true);
+    try {
+      await fn(visit.id);
+      onDone();
+      flash.success(`Visit ${label}.`);
+      setActiveVisit(null);
+      await load();
+    } catch (err) {
+      notifyError();
+      flash.error(getUserFacingError(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   const checkIn = async () => {
     setCheckingIn(true);
@@ -156,16 +180,30 @@ export default function VisitorDetail() {
               <Table responsive hover className="mb-0 align-middle">
                 <thead>
                   <tr>
+                    {/* Wire-truth time fields via visitTimes (dto.VisitOut,
+                        2026-07-24) — the old scheduled_start/created_at pair
+                        doesn't exist on the API and rendered "—" for every
+                        row outside the mock. */}
                     <th>Started</th>
+                    <th>Ended</th>
                     <th>Status</th>
+                    <th className="d-none d-md-table-cell">Location</th>
                     <th className="d-none d-sm-table-cell">Badge</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visits.map((v) => (
-                    <tr key={v.id}>
-                      <td>{formatDateTime(v.scheduled_start || v.created_at)}</td>
+                    <tr key={v.id} role="button" onClick={() => setActiveVisit(v)}>
+                      <td className="small text-nowrap">
+                        {formatDateTime(visitStartTime(v), undefined, { length: 'short' }) || '—'}
+                      </td>
+                      <td className="small text-nowrap">
+                        {visitEndTime(v)
+                          ? formatDateTime(visitEndTime(v), undefined, { length: 'short' })
+                          : <span className="text-muted">—</span>}
+                      </td>
                       <td><StatusBadge status={v.status} /></td>
+                      <td className="d-none d-md-table-cell">{v.location_name || '—'}</td>
                       <td className="d-none d-sm-table-cell">
                         {v.badge_render_error || v.badge_encode_error ? (
                           <StatusBadge status="failed" />
@@ -194,6 +232,18 @@ export default function VisitorDetail() {
         onClose={() => setShowEdit(false)}
         onSaved={() => load()}
       />
+
+      {activeVisit && (
+        <VisitActionModal
+          visit={activeVisit}
+          visitorName={`${visitor.first_name} ${visitor.last_name}`}
+          busy={actionBusy}
+          onConfirm={act('confirmed', api.confirmVisit)}
+          onCheckout={act('checked out', api.checkoutVisit)}
+          onCancel={act('cancelled', api.cancelVisit, notifyWarning)}
+          onClose={() => setActiveVisit(null)}
+        />
+      )}
     </>
   );
 }

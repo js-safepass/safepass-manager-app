@@ -422,12 +422,21 @@ export function createMockManagerApi() {
   }));
 
   let visitSeq = 100;
+  // Visit fixtures mirror the backend's dto.VisitOut FIELD NAMES exactly
+  // (verified against sentinel-datamanager 2026-07-24). An earlier version
+  // invented scheduled_start/created_at/updated_at here — fields the real
+  // API never sends — so the UI passed against the mock and rendered "—"
+  // in production. If you add a field, check VisitOut first.
+  const mockVisitorName = (id) => {
+    const v = visitors.find((x) => x.id === id);
+    return v ? `${v.first_name} ${v.last_name}` : '';
+  };
   const visits = [
     // A couple of completed past visits, one active now, one pending today.
-    { id: 'visit_001', visitor_id: 'visitor_003', org_id: org.id, status: 'completed', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_1', badge_encoded_media_id: 'media_benc_1', badge_render_error: null, badge_encode_error: null, version: 4, scheduled_start: iso(3 * DAY), scheduled_end: iso(3 * DAY - 4 * HOUR), created_at: iso(3 * DAY), updated_at: iso(3 * DAY - 4 * HOUR), _pipelineDone: true },
-    { id: 'visit_002', visitor_id: 'visitor_007', org_id: org.id, status: 'completed', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_2', badge_encoded_media_id: 'media_benc_2', badge_render_error: null, badge_encode_error: null, version: 4, scheduled_start: iso(1 * DAY), scheduled_end: iso(1 * DAY - 2 * HOUR), created_at: iso(1 * DAY), updated_at: iso(1 * DAY - 2 * HOUR), _pipelineDone: true },
-    { id: 'visit_003', visitor_id: 'visitor_001', org_id: org.id, status: 'active', checkin_status: 'confirmed', badge_raw_media_id: 'media_braw_3', badge_encoded_media_id: 'media_benc_3', badge_render_error: null, badge_encode_error: null, version: 3, scheduled_start: iso(2 * HOUR), scheduled_end: null, created_at: iso(2 * HOUR), updated_at: iso(1 * HOUR), _pipelineDone: true },
-    { id: 'visit_004', visitor_id: 'visitor_005', org_id: org.id, status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, scheduled_start: new Date(now + 3 * HOUR).toISOString(), scheduled_end: new Date(now + 6 * HOUR).toISOString(), created_at: iso(6 * HOUR), updated_at: iso(6 * HOUR) },
+    { id: 'visit_001', visitor_id: 'visitor_003', visitor_name: mockVisitorName('visitor_003'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'completed', checkin_status: 'confirmed', badge_id: 'badge_0142', badge_raw_media_id: 'media_braw_1', badge_encoded_media_id: 'media_benc_1', badge_render_error: null, badge_encode_error: null, version: 4, check_in_requested_at: iso(3 * DAY), checked_in_at: iso(3 * DAY), checked_out_at: iso(3 * DAY - 4 * HOUR), station_id: 'stn_001', host_contact: { name: 'Dana Whitfield', email: 'dana.whitfield@example.com', notify_via: 'email' }, _pipelineDone: true },
+    { id: 'visit_002', visitor_id: 'visitor_007', visitor_name: mockVisitorName('visitor_007'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_annex', status: 'completed', checkin_status: 'confirmed', badge_id: 'badge_0187', badge_raw_media_id: 'media_braw_2', badge_encoded_media_id: 'media_benc_2', badge_render_error: null, badge_encode_error: null, version: 4, check_in_requested_at: iso(1 * DAY), checked_in_at: iso(1 * DAY), checked_out_at: iso(1 * DAY - 2 * HOUR), station_id: 'stn_002', flags: { geofence_breach: true }, _pipelineDone: true },
+    { id: 'visit_003', visitor_id: 'visitor_001', visitor_name: mockVisitorName('visitor_001'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'active', checkin_status: 'confirmed', badge_id: 'badge_0201', badge_raw_media_id: 'media_braw_3', badge_encoded_media_id: 'media_benc_3', badge_render_error: null, badge_encode_error: null, version: 3, check_in_requested_at: iso(2 * HOUR), checked_in_at: iso(2 * HOUR), station_id: 'stn_001', host_contact: { first_name: 'Ravi', last_name: 'Chandra', notify_via: 'both' }, _pipelineDone: true },
+    { id: 'visit_004', visitor_id: 'visitor_005', visitor_name: mockVisitorName('visitor_005'), organization_id: org.id, location_id: 'loc_reno', location_name: 'Reno Campus', building_id: 'bld_hq', status: 'pending', checkin_status: null, badge_raw_media_id: null, badge_encoded_media_id: null, badge_render_error: null, badge_encode_error: null, version: 1, check_in_requested_at: iso(6 * HOUR), start_time: new Date(now + 3 * HOUR).toISOString(), end_time: new Date(now + 6 * HOUR).toISOString() },
   ];
 
   // Stateful mock user settings (theme/timezone roaming — WS-4).
@@ -460,13 +469,13 @@ export function createMockManagerApi() {
     if (age > 4000 && v.status === 'checking_in') {
       v.status = 'active';
       v.checkin_status = 'confirmed';
-      v.updated_at = new Date().toISOString();
+      v.checked_in_at = new Date().toISOString();
     }
     if (age > 8000 && v.status === 'active' && !v.badge_encoded_media_id) {
       v.badge_raw_media_id = `media_braw_${v.id}`;
       v.badge_encoded_media_id = `media_benc_${v.id}`;
+      v.badge_id = `badge_${v.id.slice(-3)}`;
       v._pipelineDone = true;
-      v.updated_at = new Date().toISOString();
     }
     return v;
   };
@@ -597,7 +606,11 @@ export function createMockManagerApi() {
       const visit = {
         id: `visit_${visitSeq++}`,
         visitor_id: visitorId,
-        org_id: org.id,
+        visitor_name: mockVisitorName(visitorId),
+        organization_id: org.id,
+        location_id: 'loc_reno',
+        location_name: 'Reno Campus',
+        building_id: 'bld_hq',
         status: 'checking_in',
         checkin_status: 'pending',
         badge_raw_media_id: null,
@@ -605,10 +618,8 @@ export function createMockManagerApi() {
         badge_render_error: null,
         badge_encode_error: null,
         version: 1,
-        scheduled_start: new Date().toISOString(),
-        scheduled_end: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        check_in_requested_at: new Date().toISOString(),
+        station_id: 'stn_001',
         _checkinStartedAt: Date.now(),
       };
       visits.unshift(visit);
@@ -620,10 +631,10 @@ export function createMockManagerApi() {
       let rows = visits.map(promote);
       if (params.visitor_id) rows = rows.filter((v) => v.visitor_id === params.visitor_id);
       if (params.status) rows = rows.filter((v) => csv(params.status).includes(v.status));
-      rows = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      rows = [...rows].sort((a, b) => (a.check_in_requested_at < b.check_in_requested_at ? 1 : -1));
       const page = paginate(rows, params);
       page.data = page.data.map(stripInternal);
-      page.meta.sort = '-created_at,id';
+      page.meta.sort = '-check_in_requested_at,id';
       const wantVisitor = String(params.expand || '').includes('visitor');
       if (wantVisitor) {
         page.includes = {
@@ -642,7 +653,9 @@ export function createMockManagerApi() {
     createVisit: async (payload) => {
       const visit = {
         id: `visit_${visitSeq++}`,
-        org_id: org.id,
+        organization_id: org.id,
+        location_id: 'loc_reno',
+        location_name: 'Reno Campus',
         status: 'pending',
         checkin_status: null,
         badge_raw_media_id: null,
@@ -650,8 +663,7 @@ export function createMockManagerApi() {
         badge_render_error: null,
         badge_encode_error: null,
         version: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        check_in_requested_at: new Date().toISOString(),
         ...payload,
       };
       visits.unshift(visit);
@@ -661,7 +673,7 @@ export function createMockManagerApi() {
       const found = visits.find((v) => v.id === visitId);
       if (!found) throw notFound('NOT_FOUND');
       if (found.status !== 'pending') throw conflict('Only pending visits can be confirmed.', 'INVALID_STATUS_TRANSITION');
-      Object.assign(found, { status: 'active', checkin_status: 'confirmed', updated_at: new Date().toISOString() });
+      Object.assign(found, { status: 'active', checkin_status: 'confirmed', checked_in_at: new Date().toISOString() });
       return { data: stripInternal(found) };
     },
     checkoutVisit: async (visitId) => {
@@ -671,13 +683,14 @@ export function createMockManagerApi() {
       if (!['active', 'checking_out'].includes(found.status)) {
         throw conflict('Visit is not eligible for checkout.', 'INVALID_STATUS_TRANSITION');
       }
-      Object.assign(found, { status: 'completed', updated_at: new Date().toISOString() });
+      const at = new Date().toISOString();
+      Object.assign(found, { status: 'completed', check_out_requested_at: at, checked_out_at: at });
       return { data: stripInternal(found) };
     },
     completeVisit: async (visitId) => {
       const found = visits.find((v) => v.id === visitId);
       if (!found) throw notFound('NOT_FOUND');
-      Object.assign(found, { status: 'completed', updated_at: new Date().toISOString() });
+      Object.assign(found, { status: 'completed', checked_out_at: new Date().toISOString() });
       return { data: stripInternal(found) };
     },
     cancelVisit: async (visitId) => {
@@ -687,7 +700,7 @@ export function createMockManagerApi() {
       if (found.status !== 'pending') {
         throw conflict('Only pending visits can be cancelled.', 'INVALID_STATUS_TRANSITION');
       }
-      Object.assign(found, { status: 'cancelled', updated_at: new Date().toISOString() });
+      found.status = 'cancelled';
       return { data: stripInternal(found) };
     },
     assignBadge: async (visitId) => ({ data: { id: visitId } }),
@@ -701,7 +714,6 @@ export function createMockManagerApi() {
         badge_encoded_media_id: null,
         _pipelineDone: false,
         _checkinStartedAt: Date.now(),
-        updated_at: new Date().toISOString(),
       });
       return { data: stripInternal(found) };
     },
