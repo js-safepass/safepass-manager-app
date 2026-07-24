@@ -1,23 +1,30 @@
 // Start/End timestamps for displaying a visit's lifespan (owner decision
 // 2026-07-23: the visits list shows Visitor | Status | Start | End).
 //
-// Start: scheduled_start when present; desk check-ins create the visit at
-// check-in time, so created_at is the faithful fallback.
-// End: scheduled_end when present; a TERMINAL visit without one (the normal
-// desk flow — checkout/complete/cancel stamps no scheduled_end) falls back to
-// updated_at, which the lifecycle action wrote at transition time. A live
-// visit has no end yet → null.
+// Field names are WIRE TRUTH from the backend's dto.VisitOut (verified against
+// sentinel-datamanager 2026-07-24) — an earlier version read scheduled_start/
+// created_at/updated_at, which do not exist on visits; the mock had invented
+// them, so every real deployment rendered "—". Keep the mock in managerApi.js
+// mirroring VisitOut so that can't recur.
 //
-// Pure and unit-tested; VisitsList/VisitActionModal are the wiring.
+// Start: the ACTUAL check-in when it happened, else the scheduled start_time,
+// else check_in_requested_at (always present — desk check-ins stamp it at
+// creation).
+// End: the actual checked_out_at, else the scheduled end_time for a terminal
+// visit (cancelled/expired visits stamp nothing → null → "—"). A live visit
+// has no end yet → null.
+//
+// Pure and unit-tested; VisitsList/VisitActionModal/VisitorDetail are the
+// wiring.
 
 import { isTerminalVisit } from './visitHelpers.js';
 
 export function visitStartTime(v) {
-  return v?.scheduled_start || v?.created_at || null;
+  return v?.checked_in_at || v?.start_time || v?.check_in_requested_at || null;
 }
 
 export function visitEndTime(v) {
-  if (v?.scheduled_end) return v.scheduled_end;
-  if (v && isTerminalVisit(v)) return v.updated_at || null;
+  if (v?.checked_out_at) return v.checked_out_at;
+  if (v && isTerminalVisit(v)) return v.end_time || null;
   return null;
 }
