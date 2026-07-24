@@ -25,9 +25,16 @@ export default function Profile() {
     updateSettings({ theme: next }); // roams via /users/me/settings, best-effort
   };
 
-  const scopeChain = [scopeLabel, activeScope?.divisionName, activeScope?.locationName, activeScope?.buildingName]
-    .filter(Boolean)
-    .join(' › ');
+  // Per-tier workspace rows, the mapping ProfilePanel's widget (fleet
+  // normalization, owner 2026-07-23) minus its floor tier — this app
+  // terminates at building. Each Edit deep-links the scope drill to exactly
+  // that level, keeping everything above it (?edit= in ScopePicker).
+  const tiers = [
+    { key: 'org', label: 'Organization', name: scopeLabel },
+    { key: 'division', label: 'Division', name: activeScope?.divisionName },
+    { key: 'location', label: 'Location', name: activeScope?.locationName },
+    { key: 'building', label: 'Building', name: activeScope?.buildingName },
+  ];
 
   return (
     <div className="mx-auto d-flex flex-column gap-3" style={{ maxWidth: 520 }}>
@@ -75,14 +82,32 @@ export default function Profile() {
       </Card>
 
       <Card>
-        <Card.Body className="d-flex align-items-center gap-2">
-          <div className="flex-grow-1 min-w-0">
-            <div className="text-muted small text-uppercase mb-1">Workspace</div>
-            <div className="text-truncate">{scopeChain || '—'}</div>
-          </div>
-          <Button as={Link} to="/scope" variant="outline-primary" size="sm">
-            Change
-          </Button>
+        <Card.Body>
+          <div className="text-muted small text-uppercase mb-2">Workspace</div>
+          {tiers.map((t, i) => (
+            <div
+              key={t.key}
+              className={`d-flex align-items-center gap-2 py-2 ${i > 0 ? 'border-top' : ''}`}
+            >
+              <span
+                className="app-scope-dot"
+                aria-hidden="true"
+                style={{ background: `var(--sp-scope-${t.key})` }}
+              />
+              <div className="flex-grow-1 min-w-0">
+                <div className="text-muted small text-uppercase" style={{ fontSize: '0.7rem' }}>{t.label}</div>
+                <div className="text-truncate">{t.name || '—'}</div>
+              </div>
+              <Button
+                as={Link}
+                to={`/scope?edit=${t.key}`}
+                variant="outline-secondary"
+                size="sm"
+              >
+                Edit
+              </Button>
+            </div>
+          ))}
         </Card.Body>
       </Card>
 
